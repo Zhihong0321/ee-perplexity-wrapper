@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perplexity Account Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .card {
+            @apply bg-white rounded-lg shadow-md p-6 border border-gray-200;
+        }
+        .btn-primary {
+            @apply bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors;
+        }
+        .btn-secondary {
+            @apply bg-gray-200 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-300 transition-colors;
+        }
+        .btn-danger {
+            @apply bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700 transition-colors text-sm;
+        }
+        .status-active {
+            @apply inline-block px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full;
+        }
+        .status-invalid {
+            @apply inline-block px-2 py-1 text-xs font-semibold text-red-800 bg-red-100 rounded-full;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">Perplexity Account Manager</h1>
+            <p class="text-gray-600">Manage multiple Perplexity accounts for API usage</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Add New Account Form -->
+            <div class="col-span-1 lg:col-span-2">
+                <div class="card">
+                    <h2 class="text-xl font-semibold mb-4">Add New Account</h2>
+                    <form id="addAccountForm" class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Account Name
+                                </label>
+                                <input type="text" id="accountName" required
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="e.g., personal, work">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Display Name (optional)
+                                </label>
+                                <input type="text" id="displayName"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="e.g., Personal Account">
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Chrome Extension Cookie JSON
+                            </label>
+                            <textarea id="cookieData" required rows="10"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                                placeholder='Paste the JSON from your Chrome extension here...&#10;[&#10;  {&#10;    "domain": ".perplexity.ai",&#10;    "name": "__Secure-next-auth.session-token",&#10;    "value": "...",&#10;    ...&#10;  }&#10;]'></textarea>
+                        </div>
+                        
+                        <div class="bg-blue-50 p-4 rounded-md">
+                            <h3 class="text-sm font-semibold text-blue-900 mb-2">How to get cookies:</h3>
+                            <ol class="text-sm text-blue-800 space-y-1 list-decimal list-inside">
+                                <li>Install Chrome extension like "Cookie Editor" or "Get cookies.txt LOCALLY"</li>
+                                <li>Login to your Perplexity account</li>
+                                <li>Export cookies for perplexity.ai domain</li>
+                                <li>Paste the JSON data above</li>
+                            </ol>
+                        </div>
+                        
+                        <div class="flex gap-4">
+                            <button type="submit" class="btn-primary">
+                                Add Account
+                            </button>
+                            <button type="button" onclick="validateCookies()" class="btn-secondary">
+                                Validate JSON
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Existing Accounts -->
+            <div class="col-span-1 lg:col-span-2">
+                <div class="card">
+                    <h2 class="text-xl font-semibold mb-4">Existing Accounts</h2>
+                    
+                    {% if accounts %}
+                    <div class="space-y-4">
+                        {% for account_id, account in accounts.items() %}
+                        <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                            <div class="flex justify-between items-start">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2 mb-2">
+                                        <h3 class="font-semibold text-gray-900">{{ account.name }}</h3>
+                                        <span class="text-sm text-gray-500">({{ account_id }})</span>
+                                        {% if account.status == 'active' or account.status == 'valid' %}
+                                            <span class="status-active">Active</span>
+                                        {% else %}
+                                            <span class="status-invalid">Invalid</span>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div class="text-sm text-gray-600 space-y-1">
+                                        <p>Created: {{ account.created_at[:19].replace('T', ' ') if account.created_at else 'Unknown' }}</p>
+                                        {% if account.last_used %}
+                                        <p>Last Used: {{ account.last_used[:19].replace('T', ' ') }}</p>
+                                        {% endif %}
+                                        {% if account.last_validated %}
+                                        <p>Last Validated: {{ account.last_validated[:19].replace('T', ' ') }}</p>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <div class="flex gap-2">
+                                    <button onclick="testAccount('{{ account_id }}')" class="btn-secondary text-sm">
+                                        Test
+                                    </button>
+                                    <button onclick="updateAccount('{{ account_id }}')" class="btn-secondary text-sm">
+                                        Update
+                                    </button>
+                                    <button onclick="deleteAccount('{{ account_id }}')" class="btn-danger">
+                                        Delete
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-8 text-gray-500">
+                        <p>No accounts configured yet. Add your first account above.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- API Usage Example -->
+            <div class="col-span-1">
+                <div class="card">
+                    <h2 class="text-xl font-semibold mb-4">API Usage</h2>
+                    <div class="bg-gray-50 p-4 rounded-md">
+                        <h3 class="font-semibold text-sm mb-2">Query Examples:</h3>
+                        <div class="space-y-2 text-sm">
+                            <div>
+                                <code class="block bg-gray-900 text-green-400 p-2 rounded">
+GET /api/query_async?account_name=personal&q=What%20is%20AI?
+                                </code>
+                            </div>
+                            <div>
+                                <code class="block bg-gray-900 text-green-400 p-2 rounded">
+GET /api/query_sync?account_name=work&q=Python%20tutorial?
+                                </code>
+                            </div>
+                            <div>
+                                <code class="block bg-gray-900 text-green-400 p-2 rounded">
+GET /api/threads?account_name=personal&limit=10
+                                </code>
+                            </div>
+                        </div>
+                        
+                        <h3 class="font-semibold text-sm mt-4 mb-2">Available Accounts:</h3>
+                        <div class="text-sm">
+                            {% if accounts %}
+                            <ul class="space-y-1">
+                                {% for account_id, account in accounts.items() %}
+                                <li><code>{{ account_id }}</code> - {{ account.name }}</li>
+                                {% endfor %}
+                            </ul>
+                            {% else %}
+                            <p class="text-gray-500">No accounts configured</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Server Status -->
+            <div class="col-span-1">
+                <div class="card">
+                    <h2 class="text-xl font-semibold mb-4">Server Status</h2>
+                    <div id="serverStatus" class="space-y-2">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">API Server:</span>
+                            <span class="status-active">Running</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Accounts Loaded:</span>
+                            <span>{{ accounts|length }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden update form -->
+    <div id="updateModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <h3 class="text-xl font-semibold mb-4">Update Account: <span id="updateAccountName"></span></h3>
+            <form id="updateAccountForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        New Cookie JSON
+                    </label>
+                    <textarea id="updateCookieData" required rows="10"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                        placeholder="Paste the updated JSON from your Chrome extension here..."></textarea>
+                </div>
+                <div class="flex gap-4">
+                    <button type="submit" class="btn-primary">
+                        Update Account
+                    </button>
+                    <button type="button" onclick="closeUpdateModal()" class="btn-secondary">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast notification -->
+    <div id="toast" class="hidden fixed top-4 right-4 p-4 bg-green-600 text-white rounded-lg shadow-lg z-50">
+        <div id="toastMessage"></div>
+    </div>
+
+    <script>
+        // Account management
+        async function addAccount(event) {
+            event.preventDefault();
+            
+            const formData = new FormData();
+            formData.append('account_name', document.getElementById('accountName').value);
+            formData.append('display_name', document.getElementById('displayName').value);
+            formData.append('cookie_data', document.getElementById('cookieData').value);
+            
+            try {
+                const response = await fetch('/api/account/add', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    showToast('Account added successfully!', 'success');
+                    document.getElementById('addAccountForm').reset();
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showToast('Error: ' + result.message, 'error');
+                }
+            } catch (error) {
+                showToast('Network error: ' + error.message, 'error');
+            }
+        }
+        
+        async function testAccount(accountName) {
+            try {
+                const response = await fetch(`/api/account/test/${accountName}`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.valid) {
+                    showToast('Account is valid!', 'success');
+                } else {
+                    showToast('Account is invalid: ' + result.message, 'error');
+                }
+                
+                setTimeout(() => location.reload(), 2000);
+            } catch (error) {
+                showToast('Test failed: ' + error.message, 'error');
+            }
+        }
+        
+        function updateAccount(accountName) {
+            document.getElementById('updateAccountName').textContent = accountName;
+            document.getElementById('updateModal').classList.remove('hidden');
+            window.currentUpdateAccount = accountName;
+        }
+        
+        function closeUpdateModal() {
+            document.getElementById('updateModal').classList.add('hidden');
+            window.currentUpdateAccount = null;
+        }
+        
+        async function submitUpdateAccount(event) {
+            event.preventDefault();
+            
+            const formData = new FormData();
+            formData.append('cookie_data', document.getElementById('updateCookieData').value);
+            
+            try {
+                const response = await fetch(`/api/account/update/${window.currentUpdateAccount}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    showToast('Account updated successfully!', 'success');
+                    closeUpdateModal();
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showToast('Error: ' + result.message, 'error');
+                }
+            } catch (error) {
+                showToast('Network error: ' + error.message, 'error');
+            }
+        }
+        
+        async function deleteAccount(accountName) {
+            if (!confirm(`Are you sure you want to delete account "${accountName}"?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/account/${accountName}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    showToast('Account deleted successfully!', 'success');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showToast('Error: ' + result.message, 'error');
+                }
+            } catch (error) {
+                showToast('Network error: ' + error.message, 'error');
+            }
+        }
+        
+        function validateCookies() {
+            const cookieData = document.getElementById('cookieData').value;
+            
+            try {
+                JSON.parse(cookieData);
+                showToast('JSON is valid!', 'success');
+            } catch (error) {
+                showToast('Invalid JSON: ' + error.message, 'error');
+            }
+        }
+        
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            
+            toastMessage.textContent = message;
+            toast.className = `fixed top-4 right-4 p-4 text-white rounded-lg shadow-lg z-50 ${
+                type === 'success' ? 'bg-green-600' : 'bg-red-600'
+            }`;
+            toast.classList.remove('hidden');
+            
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
+        
+        // Event listeners
+        document.getElementById('addAccountForm').addEventListener('submit', addAccount);
+        document.getElementById('updateAccountForm').addEventListener('submit', submitUpdateAccount);
+    </script>
+</body>
+</html>

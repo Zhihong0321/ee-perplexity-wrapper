@@ -1,0 +1,15 @@
+[project]
+name = "perplexity-web-wrapper"
+version = "0.1.0"
+description = "Multi-account unofficial wrapper for Perplexity AI's web interface with web management interface."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "curl-cffi>=0.11.3",
+    "fastapi>=0.115.12",
+    "uvicorn>=0.34.3",
+    "websocket-client>=1.8.0",
+    "jinja2>=3.0.0",
+    "python-multipart>=0.0.6",
+    "aiofiles>=23.0.0",
+]
