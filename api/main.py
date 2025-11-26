@@ -20,7 +20,11 @@ from api.utils import extract_answer, save_resp
 cookie_manager = CookieManager()
 
 # Templates
-templates = Jinja2Templates(directory="templates")
+try:
+    templates = Jinja2Templates(directory="templates")
+except Exception as e:
+    print(f"Failed to load templates: {e}")
+    templates = None
 
 app = FastAPI(
     title="Perplexity Multi-Account API", description="Multi-account Perplexity AI API with cookie management"
@@ -34,6 +38,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    """Simple health check endpoint."""
+    return {"status": "healthy", "message": "Perplexity Multi-Account API is running"}
 
 
 def get_perplexity_client(account_name: str) -> perplexity.Client:
@@ -258,6 +268,14 @@ async def get_thread(
 async def dashboard(request: Request):
     """Main dashboard for account management."""
     accounts = cookie_manager.get_all_accounts()
+    
+    if templates is None:
+        return JSONResponse(content({
+            "message": "Template loading failed, using JSON response",
+            "accounts": accounts,
+            "html_available": False
+        }))
+    
     return templates.TemplateResponse("dashboard.html", {"request": request, "accounts": accounts})
 
 

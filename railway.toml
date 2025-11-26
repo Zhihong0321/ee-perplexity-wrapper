@@ -3,8 +3,8 @@ builder = "NIXPACKS"
 
 [deploy]
 startCommand = "python run_server.py"
-healthcheckPath = "/"
-healthcheckTimeout = 300
+healthcheckPath = "/health"
+healthcheckTimeout = 60
 restartPolicyType = "ON_FAILURE"
 
 [env]
