@@ -140,7 +140,10 @@ async def query_async(
         enum=["auto", "writing", "coding", "research"],
     ),
     model: Optional[str] = Query(None, description="Model to use"),
-    sources: str = Query("web", description="Sources (comma-separated)"),
+    sources: str = Query(
+        "web",
+        description="Sources (comma-separated: web, scholar, social)",
+    ),
     language: str = Query("en-US", description="Language"),
     incognito: bool = Query(False, description="Use incognito mode"),
 ):
@@ -179,7 +182,10 @@ async def query_sync(
         enum=["auto", "writing", "coding", "research"],
     ),
     model: Optional[str] = Query(None, description="Model to use"),
-    sources: str = Query("web", description="Sources (comma-separated)"),
+    sources: str = Query(
+        "web",
+        description="Sources (comma-separated: web, scholar, social)",
+    ),
     language: str = Query("en-US", description="Language"),
     incognito: bool = Query(False, description="Use incognito mode"),
 ):

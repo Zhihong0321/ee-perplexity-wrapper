@@ -16,10 +16,10 @@ except Exception as e:
     print(f"FAIL lib.cookie_manager failed: {e}")
 
 try:
-    from utils import extract_answer, save_resp
-    print("OK utils imported")
+    from api.utils import extract_answer, save_resp
+    print("OK api.utils imported")
 except Exception as e:
-    print(f"FAIL utils failed: {e}")
+    print(f"FAIL api.utils failed: {e}")
 
 try:
     import lib
