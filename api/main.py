@@ -21,7 +21,10 @@ cookie_manager = CookieManager()
 
 # Templates
 try:
-    templates = Jinja2Templates(directory="templates")
+    # Use absolute path from current working directory
+    template_dir = "api/templates"
+    print(f"Looking for templates in: {template_dir}")
+    templates = Jinja2Templates(directory=template_dir)
 except Exception as e:
     print(f"Failed to load templates: {e}")
     templates = None
@@ -273,10 +276,34 @@ async def dashboard(request: Request):
         return JSONResponse(content({
             "message": "Template loading failed, using JSON response",
             "accounts": accounts,
-            "html_available": False
+            "html_available": False,
+            "api_endpoints": {
+                "account_list": "/api/account/list",
+                "add_account": "/api/account/add",
+                "test_account": "/api/account/test/{account_name}",
+                "api_docs": "/docs",
+                "health": "/health"
+            }
         }))
     
     return templates.TemplateResponse("dashboard.html", {"request": request, "accounts": accounts})
+
+# Simple API info endpoint 
+@app.get("/info")
+async def api_info():
+    """API information endpoint."""
+    return JSONResponse(content={
+        "name": "Perplexity Multi-Account API",
+        "status": "running",
+        "endpoints": {
+            "dashboard": "/",
+            "api_docs": "/docs",
+            "health": "/health",
+            "account_list": "/api/account/list",
+            "query_async": "/api/query_async",
+            "query_sync": "/api/query_sync"
+        }
+    })
 
 
 @app.post("/api/account/add")
