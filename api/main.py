@@ -5,7 +5,9 @@ from fastapi.templating import Jinja2Templates
 from fastapi import Request
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+
+# Add parent directory to Python path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import json
 from lib import perplexity
