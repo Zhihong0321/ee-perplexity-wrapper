@@ -3,3 +3,7 @@ __pycache__
 .venv
 logs
 perplexity_cookies.json
+accounts.json
+session-cookie.json
+.env
+*.log
