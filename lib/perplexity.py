@@ -93,8 +93,14 @@ class Client:
         - frontend_uuid: UUID for the frontend instance.
         - frontend_context_uuid: UUID for the frontend context (conversation/thread).
         """
+        # Normalize mode: if a specific model is requested while mode is "auto",
+        # treat it as a copilot/pro query (matches current Perplexity behavior).
+        effective_mode = mode
+        if effective_mode == "auto" and model not in (None, "auto"):
+            effective_mode = "pro"
+
         # Validate input parameters
-        assert mode in ["auto", "pro", "reasoning", "deep research"], (
+        assert effective_mode in ["auto", "pro", "reasoning", "deep research"], (
             "Invalid search mode."
         )
         assert (
@@ -115,7 +121,7 @@ class Client:
                 ],
                 "reasoning": [None, "r1", "o3-mini", "claude 3.7 sonnet"],
                 "deep research": [None],
-            }[mode]
+            }[effective_mode]
             if self.own
             else True
         ), "Invalid model for the selected mode."
@@ -123,7 +129,7 @@ class Client:
             "Invalid sources."
         )
         assert (
-            self.copilot > 0 if mode in ["pro", "reasoning", "deep research"] else True
+            self.copilot > 0 if effective_mode in ["pro", "reasoning", "deep research"] else True
         ), "No remaining pro queries."
         assert self.file_upload - len(files) >= 0 if files else True, (
             "File upload limit exceeded."
@@ -132,7 +138,7 @@ class Client:
         # Update query and file upload counters
         self.copilot = (
             self.copilot - 1
-            if mode in ["pro", "reasoning", "deep research"]
+            if effective_mode in ["pro", "reasoning", "deep research"]
             else self.copilot
         )
         self.file_upload = self.file_upload - len(files) if files else self.file_upload
@@ -192,12 +198,12 @@ class Client:
                 "is_incognito": incognito,
                 "language": language,
                 "last_backend_uuid": follow_up["backend_uuid"] if follow_up else None,
-                "mode": "concise" if mode == "auto" else "copilot",
+                "mode": "concise" if effective_mode == "auto" else "copilot",
                 "model_preference": {
                     "auto": {None: "turbo"},
                     "pro": {
                         None: "pplx_pro",
-                    "sonar": "experimental",
+                        "sonar": "experimental",
                     "gpt-4.5": "gpt45",
                     "gpt-4o": "gpt4o",
                     "claude 3.7 sonnet": "claude2",
@@ -217,7 +223,7 @@ class Client:
                         "claude 3.7 sonnet": "claude37sonnetthinking",
                     },
                     "deep research": {None: "pplx_alpha"},
-                }[mode][model],
+                }[effective_mode][model],
                 "source": "default",
                 "sources": sources,
                 "target_collection_uuid": collection_uuid,
