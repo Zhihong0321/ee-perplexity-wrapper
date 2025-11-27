@@ -319,28 +319,36 @@ class Client:
         return resp.json()
 
     def list_collections(self, limit=30, offset=0):
-        """Get list of user's collections"""
+        """Get list of user's collections with real UUIDs"""
         url = "https://www.perplexity.ai/rest/collections/list_recent"
         params = {"version": "2.18", "source": "default"}
         resp = self.session.get(url, params=params)
         
         data = resp.json()
         
-        # The new endpoint returns a simple list of objects with title, link, emoji
-        # We need to map this to the expected format for compatibility
         if isinstance(data, list):
             mapped_collections = []
             for item in data:
-                # Extract slug from link: /collections/slug
                 slug = item.get('link', '').split('/')[-1] if item.get('link') else ''
                 
+                # Fetch details to get the real UUID
+                # Note: This N+1 request pattern might be slow for many collections
+                # but is necessary as list_recent doesn't return UUIDs
+                real_uuid = slug # Default fallback
+                try:
+                    details = self.get_collection(collection_slug=slug)
+                    if 'uuid' in details:
+                        real_uuid = details['uuid']
+                except Exception:
+                    pass
+
                 mapped_collections.append({
                     "title": item.get('title', ''),
                     "slug": slug,
-                    "uuid": slug, # Use slug as UUID since we don't have UUID
-                    "description": "", # Not available in this endpoint
-                    "count": 0, # Not available
-                    "access_state": "private", # Assumption
+                    "uuid": real_uuid,
+                    "description": "",
+                    "count": 0,
+                    "access_state": "private",
                     "emoji": item.get('emoji', '')
                 })
             return {"data": mapped_collections}
