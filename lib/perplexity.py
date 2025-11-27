@@ -109,6 +109,9 @@ class Client:
                     "claude 3.7 sonnet",
                     "gemini 2.0 flash",
                     "grok-2",
+                    "gpt-5.1",
+                    "gemini-3-pro",
+                    "grok-4.1",
                 ],
                 "reasoning": [None, "r1", "o3-mini", "claude 3.7 sonnet"],
                 "deep research": [None],
@@ -194,13 +197,19 @@ class Client:
                     "auto": {None: "turbo"},
                     "pro": {
                         None: "pplx_pro",
-                        "sonar": "experimental",
-                        "gpt-4.5": "gpt45",
-                        "gpt-4o": "gpt4o",
-                        "claude 3.7 sonnet": "claude2",
-                        "gemini 2.0 flash": "gemini2flash",
-                        "grok-2": "grok",
-                    },
+                    "sonar": "experimental",
+                    "gpt-4.5": "gpt45",
+                    "gpt-4o": "gpt4o",
+                    "claude 3.7 sonnet": "claude2",
+                    "gemini 2.0 flash": "gemini2flash",
+                    "grok-2": "grok",
+                    # Perplexity API now expects the thinking variant name
+                    "gpt-5.1": "gpt51_thinking",
+                    # Updated Gemini 3 Pro model id
+                    "gemini-3-pro": "gemini30pro",
+                    # Updated Grok 4.1 model id
+                    "grok-4.1": "grok41nonreasoning",
+                },
                     "reasoning": {
                         None: "pplx_reasoning",
                         "r1": "r1",
@@ -395,4 +404,21 @@ class Client:
             "source": "default"
         }
         resp = await self.session.post(url, json=params)
+        return resp.json()
+
+    async def delete_thread(self, thread_uuid):
+        """
+        Deletes a thread using its UUID.
+        
+        Parameters:
+        - thread_uuid: The UUID of the thread to delete (passed as memory_key)
+        """
+        url = "https://www.perplexity.ai/rest/memories/delete"
+        params = {
+            "memory_key": thread_uuid,
+            "version": "2.18",
+            "source": "default"
+        }
+        resp = await self.session.delete(url, params=params)
+        resp.raise_for_status()
         return resp.json()
