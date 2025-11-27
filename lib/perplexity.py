@@ -320,10 +320,32 @@ class Client:
 
     def list_collections(self, limit=30, offset=0):
         """Get list of user's collections"""
-        url = "https://www.perplexity.ai/rest/collections/list_user_collections"
-        payload = {"limit": limit, "offset": offset, "version": "2.18", "source": "default"}
-        resp = self.session.post(url, json=payload)
-        return resp.json()
+        url = "https://www.perplexity.ai/rest/collections/list_recent"
+        params = {"version": "2.18", "source": "default"}
+        resp = self.session.get(url, params=params)
+        
+        data = resp.json()
+        
+        # The new endpoint returns a simple list of objects with title, link, emoji
+        # We need to map this to the expected format for compatibility
+        if isinstance(data, list):
+            mapped_collections = []
+            for item in data:
+                # Extract slug from link: /collections/slug
+                slug = item.get('link', '').split('/')[-1] if item.get('link') else ''
+                
+                mapped_collections.append({
+                    "title": item.get('title', ''),
+                    "slug": slug,
+                    "uuid": slug, # Use slug as UUID since we don't have UUID
+                    "description": "", # Not available in this endpoint
+                    "count": 0, # Not available
+                    "access_state": "private", # Assumption
+                    "emoji": item.get('emoji', '')
+                })
+            return {"data": mapped_collections}
+            
+        return data
 
     def get_collection(self, collection_slug=None, collection_uuid=None):
         """Get collection details by slug or UUID"""
