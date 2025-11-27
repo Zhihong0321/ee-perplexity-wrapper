@@ -60,6 +60,7 @@ class Client:
         language="en-US",
         follow_up=None,
         incognito=False,
+        collection_uuid=None,
     ):
         """
         Executes a search query on Perplexity AI.
@@ -74,6 +75,7 @@ class Client:
         - language: Language code (ISO 639).
         - follow_up: Information for follow-up queries.
         - incognito: Whether to enable incognito mode.
+        - collection_uuid: UUID of the collection (space) to search within.
         """
         # Validate input parameters
         assert mode in ["auto", "pro", "reasoning", "deep research"], (
@@ -194,6 +196,8 @@ class Client:
                 }[mode][model],
                 "source": "default",
                 "sources": sources,
+                "target_collection_uuid": collection_uuid,
+                "query_source": "collection" if collection_uuid else "default",
                 "version": "2.18",
             },
         }
@@ -313,3 +317,42 @@ class Client:
         resp = self.session.get(url)
         resp.raise_for_status()
         return resp.json()
+
+    def list_collections(self, limit=30, offset=0):
+        """Get list of user's collections"""
+        url = "https://www.perplexity.ai/rest/collections/list_user_collections"
+        payload = {"limit": limit, "offset": offset, "version": "2.18", "source": "default"}
+        resp = self.session.post(url, json=payload)
+        return resp.json()
+
+    def get_collection(self, collection_slug=None, collection_uuid=None):
+        """Get collection details by slug or UUID"""
+        if collection_slug:
+            url = f"https://www.perplexity.ai/rest/collections/get_collection?collection_slug={collection_slug}&version=2.18&source=default"
+            resp = self.session.get(url)
+        elif collection_uuid:
+            # Currently the API seems to use slug primarily for retrieval, 
+            # but if there's a UUID endpoint we would use it here. 
+            # For now, raising not implemented or falling back if possible.
+            # Assuming we need slug for now based on instructions.
+            raise NotImplementedError("Retrieving by UUID is not yet implemented/discovered.")
+        else:
+            raise ValueError("Must provide collection_slug or collection_uuid")
+        
+        return resp.json()
+
+    def list_collection_threads(self, collection_slug, limit=20, offset=0, filter_by_user=True, filter_by_shared_threads=False):
+        """Get threads from specific collection"""
+        url = f"https://www.perplexity.ai/rest/collections/list_collection_threads"
+        params = {
+            "collection_slug": collection_slug,
+            "limit": limit,
+            "offset": offset,
+            "filter_by_user": filter_by_user,
+            "filter_by_shared_threads": filter_by_shared_threads,
+            "version": "2.18",
+            "source": "default"
+        }
+        resp = self.session.post(url, json=params)
+        return resp.json()
+

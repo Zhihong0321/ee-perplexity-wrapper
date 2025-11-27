@@ -122,6 +122,9 @@
                                 </div>
                                 
                                 <div class="flex gap-2">
+                                    <button onclick="viewCollections('{{ account_id }}')" class="btn-secondary text-sm">
+                                        Spaces
+                                    </button>
                                     <button onclick="testAccount('{{ account_id }}')" class="btn-secondary text-sm">
                                         Test
                                     </button>
@@ -166,6 +169,18 @@ GET /api/query_sync?account_name=work&q=Python%20tutorial?
 GET /api/threads?account_name=personal&limit=10
                                 </code>
                             </div>
+                            <div>
+                                <div class="text-gray-500 text-xs mb-1">Get list of Spaces (Collections):</div>
+                                <code class="block bg-gray-900 text-green-400 p-2 rounded">
+GET /api/collections?account_name=personal
+                                </code>
+                            </div>
+                            <div>
+                                <div class="text-gray-500 text-xs mb-1">Query specific Space (use UUID):</div>
+                                <code class="block bg-gray-900 text-green-400 p-2 rounded">
+GET /api/query_async?account_name=personal&q=News&collection_uuid=...
+                                </code>
+                            </div>
                         </div>
                         
                         <h3 class="font-semibold text-sm mt-4 mb-2">Available Accounts:</h3>
@@ -199,6 +214,30 @@ GET /api/threads?account_name=personal&limit=10
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Collections Modal -->
+    <div id="collectionsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-semibold">Spaces (Collections): <span id="collectionsAccountName"></span></h3>
+                <button onclick="closeCollectionsModal()" class="text-gray-500 hover:text-gray-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <div id="collectionsList" class="space-y-4">
+                <div class="text-center py-8">Loading spaces...</div>
+            </div>
+            
+            <div class="mt-6 flex justify-end">
+                <button onclick="closeCollectionsModal()" class="btn-secondary">
+                    Close
+                </button>
             </div>
         </div>
     </div>
@@ -263,6 +302,56 @@ GET /api/threads?account_name=personal&limit=10
             }
         }
         
+        async function viewCollections(accountName) {
+            document.getElementById('collectionsAccountName').textContent = accountName;
+            document.getElementById('collectionsModal').classList.remove('hidden');
+            const listContainer = document.getElementById('collectionsList');
+            listContainer.innerHTML = '<div class="text-center py-8">Loading spaces...</div>';
+            
+            try {
+                const response = await fetch(`/api/collections?account_name=${accountName}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    listContainer.innerHTML = `<div class="text-red-600 p-4 bg-red-50 rounded">Error: ${data.error}</div>`;
+                    return;
+                }
+                
+                if (!data.data || data.data.length === 0) {
+                    listContainer.innerHTML = '<div class="text-center py-8 text-gray-500">No spaces found.</div>';
+                    return;
+                }
+                
+                let html = '<div class="grid grid-cols-1 md:grid-cols-2 gap-4">';
+                data.data.forEach(collection => {
+                    html += `
+                        <div class="border border-gray-200 rounded p-4 hover:shadow transition-shadow">
+                            <div class="flex items-start justify-between mb-2">
+                                <div class="font-semibold text-lg">${collection.title}</div>
+                                <div class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">${collection.access_state}</div>
+                            </div>
+                            <div class="text-sm text-gray-600 mb-2 line-clamp-2">${collection.description || 'No description'}</div>
+                            <div class="text-xs text-gray-500 font-mono mb-3 bg-gray-50 p-1 rounded truncate">ID: ${collection.uuid}</div>
+                            <div class="flex gap-2 text-xs">
+                                <div class="bg-gray-100 px-2 py-1 rounded">Slug: ${collection.slug}</div>
+                                <div class="bg-gray-100 px-2 py-1 rounded">${collection.count || 0} items</div>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                
+                listContainer.innerHTML = html;
+                
+            } catch (error) {
+                listContainer.innerHTML = `<div class="text-red-600 p-4 bg-red-50 rounded">Network error: ${error.message}</div>`;
+            }
+        }
+
+        function closeCollectionsModal() {
+            document.getElementById('collectionsModal').classList.add('hidden');
+        }
+
         async function testAccount(accountName) {
             try {
                 const response = await fetch(`/api/account/test/${accountName}`, {

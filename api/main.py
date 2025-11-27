@@ -68,6 +68,7 @@ async def generate_sse_stream(
     follow_up: Optional[dict],
     incognito: bool,
     account_name: str,
+    collection_uuid: Optional[str] = None,
 ):
     """Generate SSE stream from Perplexity responses."""
     response_count = 0
@@ -87,6 +88,7 @@ async def generate_sse_stream(
             language=language,
             follow_up=follow_up,
             incognito=incognito,
+            collection_uuid=collection_uuid,
         ):
             response_count += 1
             file_name = (
@@ -146,6 +148,7 @@ async def query_async(
     ),
     language: str = Query("en-US", description="Language"),
     incognito: bool = Query(False, description="Use incognito mode"),
+    collection_uuid: Optional[str] = Query(None, description="Collection UUID to search within"),
 ):
     """Stream Perplexity AI responses as Server-Sent Events (SSE). Handles both new and follow-up queries."""
     sources_list = [s.strip() for s in sources.split(",")]
@@ -163,6 +166,7 @@ async def query_async(
             follow_up=follow_up,
             incognito=incognito,
             account_name=account_name,
+            collection_uuid=collection_uuid,
         ),
         media_type="text/event-stream",
     )
@@ -188,6 +192,7 @@ async def query_sync(
     ),
     language: str = Query("en-US", description="Language"),
     incognito: bool = Query(False, description="Use incognito mode"),
+    collection_uuid: Optional[str] = Query(None, description="Collection UUID to search within"),
 ):
     """Query Perplexity AI and return the full response as JSON (no streaming)."""
     sources_list = [s.strip() for s in sources.split(",")]
@@ -208,6 +213,7 @@ async def query_sync(
             language=language,
             follow_up=follow_up,
             incognito=incognito,
+            collection_uuid=collection_uuid,
         )
         file_name = f"API-{account_name}-{datetime.now().strftime('%Y%m%d%H%M%S')}-sync"
         save_resp(result, file_name)
@@ -268,6 +274,57 @@ async def get_thread(
         await cookie_manager.mark_account_used(account_name)
         
         return JSONResponse(content=thread)
+    except Exception as e:
+        return JSONResponse(content={"error": str(e), "account_used": account_name}, status_code=500)
+
+
+@app.get("/api/collections")
+async def list_collections(
+    account_name: str = Query(..., description="Account name to use"),
+    limit: int = 20, 
+    offset: int = 0
+):
+    """List collections for account"""
+    try:
+        client = get_perplexity_client(account_name)
+        collections = client.list_collections(limit=limit, offset=offset)
+        collections["account_used"] = account_name
+        await cookie_manager.mark_account_used(account_name)
+        return JSONResponse(content=collections)
+    except Exception as e:
+        return JSONResponse(content={"error": str(e), "account_used": account_name}, status_code=500)
+
+
+@app.get("/api/collections/{collection_slug}")
+async def get_collection_details(
+    collection_slug: str, 
+    account_name: str = Query(..., description="Account name to use")
+):
+    """Get collection details"""
+    try:
+        client = get_perplexity_client(account_name)
+        details = client.get_collection(collection_slug=collection_slug)
+        details["account_used"] = account_name
+        await cookie_manager.mark_account_used(account_name)
+        return JSONResponse(content=details)
+    except Exception as e:
+        return JSONResponse(content={"error": str(e), "account_used": account_name}, status_code=500)
+
+
+@app.get("/api/collections/{collection_slug}/threads")
+async def get_collection_threads(
+    collection_slug: str, 
+    account_name: str = Query(..., description="Account name to use"),
+    limit: int = 20, 
+    offset: int = 0
+):
+    """Get threads from collection"""
+    try:
+        client = get_perplexity_client(account_name)
+        threads = client.list_collection_threads(collection_slug, limit=limit, offset=offset)
+        threads["account_used"] = account_name
+        await cookie_manager.mark_account_used(account_name)
+        return JSONResponse(content=threads)
     except Exception as e:
         return JSONResponse(content={"error": str(e), "account_used": account_name}, status_code=500)
 
