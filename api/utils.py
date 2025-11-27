@@ -2,7 +2,7 @@ import os
 import json
 
 # Determine storage path
-STORAGE_DIR = "/app/storage"
+STORAGE_DIR = os.getenv("STORAGE_ROOT", "/app/storage")
 if os.path.exists(STORAGE_DIR) and os.path.isdir(STORAGE_DIR):
     logs_dir = os.path.join(STORAGE_DIR, "logs")
 else:
