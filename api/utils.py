@@ -1,7 +1,13 @@
 import os
 import json
 
-logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../logs")
+# Determine storage path
+STORAGE_DIR = "/app/storage"
+if os.path.exists(STORAGE_DIR) and os.path.isdir(STORAGE_DIR):
+    logs_dir = os.path.join(STORAGE_DIR, "logs")
+else:
+    logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../logs")
+
 if not os.path.exists(logs_dir):
     os.makedirs(logs_dir)
 

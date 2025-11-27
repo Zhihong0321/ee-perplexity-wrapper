@@ -16,8 +16,17 @@ from typing import List, Optional
 from datetime import datetime
 from api.utils import extract_answer, save_resp
 
+# Determine storage path
+STORAGE_DIR = "/app/storage"
+if os.path.exists(STORAGE_DIR) and os.path.isdir(STORAGE_DIR):
+    storage_file = os.path.join(STORAGE_DIR, "accounts.json")
+    print(f"Using persistent storage: {storage_file}")
+else:
+    storage_file = "accounts.json"
+    print(f"Using local storage: {storage_file}")
+
 # Initialize cookie manager
-cookie_manager = CookieManager()
+cookie_manager = CookieManager(storage_file)
 
 # Templates
 try:
