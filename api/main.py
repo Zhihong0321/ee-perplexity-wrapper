@@ -17,8 +17,27 @@ from datetime import datetime
 from api.utils import extract_answer, save_resp
 
 # Determine storage path
-STORAGE_DIR = os.getenv("STORAGE_ROOT", "/app/storage")
-if os.path.exists(STORAGE_DIR) and os.path.isdir(STORAGE_DIR):
+# Priority:
+# 1. STORAGE_ROOT env var
+# 2. /storage (Common Railway volume path)
+# 3. /app/storage (Alternative path)
+# 4. Local directory
+
+env_storage = os.getenv("STORAGE_ROOT")
+possible_paths = []
+
+if env_storage:
+    possible_paths.append(env_storage)
+
+possible_paths.extend(["/storage", "/app/storage"])
+
+STORAGE_DIR = None
+for path in possible_paths:
+    if os.path.exists(path) and os.path.isdir(path):
+        STORAGE_DIR = path
+        break
+
+if STORAGE_DIR:
     storage_file = os.path.join(STORAGE_DIR, "accounts.json")
     print(f"Using persistent storage: {storage_file}")
 else:
