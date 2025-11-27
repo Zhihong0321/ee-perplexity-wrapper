@@ -1,5 +1,7 @@
 import os
 import json
+from fastapi.responses import JSONResponse
+from typing import Any, Dict
 
 # Determine storage path
 STORAGE_DIR = os.getenv("STORAGE_ROOT", "/app/storage")
@@ -70,3 +72,23 @@ def save_resp(res, file_name):
     except Exception:
         # Silently fail if we can't save
         pass
+
+def create_api_response(content: Any, account_used: str = None, status_code: int = 200) -> JSONResponse:
+    """
+    Create a standardized JSON response.
+    Wraps content in a consistent structure and handles errors.
+    """
+    response_content = content if isinstance(content, dict) else {"data": content}
+    
+    if account_used:
+        response_content["account_used"] = account_used
+        
+    return JSONResponse(content=response_content, status_code=status_code)
+
+def handle_api_error(e: Exception, account_used: str = None) -> JSONResponse:
+    """Handle API errors consistently."""
+    return JSONResponse(
+        content={"error": str(e), "account_used": account_used},
+        status_code=500
+    )
+

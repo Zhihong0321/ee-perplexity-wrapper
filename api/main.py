@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Query, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, JSONResponse, HTMLResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi import Request
 import sys
@@ -14,37 +14,11 @@ from lib import perplexity
 from lib.cookie_manager import CookieManager
 from typing import List, Optional
 from datetime import datetime
-from api.utils import extract_answer, save_resp
+from api.utils import extract_answer, save_resp, create_api_response, handle_api_error
+from api.config import get_storage_file_path
 
-# Determine storage path
-# Priority:
-# 1. STORAGE_ROOT env var
-# 2. /storage (Common Railway volume path)
-# 3. /app/storage (Alternative path)
-# 4. Local directory
-
-env_storage = os.getenv("STORAGE_ROOT")
-possible_paths = []
-
-if env_storage:
-    possible_paths.append(env_storage)
-
-possible_paths.extend(["/storage", "/app/storage"])
-
-STORAGE_DIR = None
-for path in possible_paths:
-    if os.path.exists(path) and os.path.isdir(path):
-        STORAGE_DIR = path
-        break
-
-if STORAGE_DIR:
-    storage_file = os.path.join(STORAGE_DIR, "accounts.json")
-    print(f"Using persistent storage: {storage_file}")
-else:
-    storage_file = "accounts.json"
-    print(f"Using local storage: {storage_file}")
-
-# Initialize cookie manager
+# Initialize cookie manager with persistent storage path
+storage_file = get_storage_file_path("accounts.json")
 cookie_manager = CookieManager(storage_file)
 
 # Templates
@@ -251,13 +225,11 @@ async def query_sync(
         
         if answer_only:
             ans_data = extract_answer(result, file_name)
-            ans_data["account_used"] = account_name
-            return JSONResponse(content=ans_data)
+            return create_api_response(ans_data, account_name)
         
-        result["account_used"] = account_name
-        return JSONResponse(content=result)
+        return create_api_response(result, account_name)
     except Exception as e:
-        return JSONResponse(content={"error": str(e), "account_used": account_name}, status_code=500)
+        return handle_api_error(e, account_name)
 
 
 @app.get("/api/threads")
@@ -275,14 +247,13 @@ async def get_threads(
         threads = client.get_threads(
             limit=limit, offset=offset, search_term=search_term
         )
-        threads["account_used"] = account_name
         
         # Mark account as used
         await cookie_manager.mark_account_used(account_name)
         
-        return JSONResponse(content=threads)
+        return create_api_response(threads, account_name)
     except Exception as e:
-        return JSONResponse(content={"error": str(e), "account_used": account_name}, status_code=500)
+        return handle_api_error(e, account_name)
 
 
 @app.get("/api/threads/{slug}")
@@ -296,14 +267,13 @@ async def get_thread(
         client = get_perplexity_client(account_name)
         
         thread = client.get_thread_details_by_slug(slug)
-        thread["account_used"] = account_name
         
         # Mark account as used
         await cookie_manager.mark_account_used(account_name)
         
-        return JSONResponse(content=thread)
+        return create_api_response(thread, account_name)
     except Exception as e:
-        return JSONResponse(content={"error": str(e), "account_used": account_name}, status_code=500)
+        return handle_api_error(e, account_name)
 
 
 @app.get("/api/collections")
@@ -316,11 +286,10 @@ async def list_collections(
     try:
         client = get_perplexity_client(account_name)
         collections = client.list_collections(limit=limit, offset=offset)
-        collections["account_used"] = account_name
         await cookie_manager.mark_account_used(account_name)
-        return JSONResponse(content=collections)
+        return create_api_response(collections, account_name)
     except Exception as e:
-        return JSONResponse(content={"error": str(e), "account_used": account_name}, status_code=500)
+        return handle_api_error(e, account_name)
 
 
 @app.get("/api/collections/{collection_slug}")
@@ -332,11 +301,10 @@ async def get_collection_details(
     try:
         client = get_perplexity_client(account_name)
         details = client.get_collection(collection_slug=collection_slug)
-        details["account_used"] = account_name
         await cookie_manager.mark_account_used(account_name)
-        return JSONResponse(content=details)
+        return create_api_response(details, account_name)
     except Exception as e:
-        return JSONResponse(content={"error": str(e), "account_used": account_name}, status_code=500)
+        return handle_api_error(e, account_name)
 
 
 @app.get("/api/collections/{collection_slug}/threads")
@@ -350,11 +318,11 @@ async def get_collection_threads(
     try:
         client = get_perplexity_client(account_name)
         threads = client.list_collection_threads(collection_slug, limit=limit, offset=offset)
-        threads["account_used"] = account_name
         await cookie_manager.mark_account_used(account_name)
-        return JSONResponse(content=threads)
+        return create_api_response(threads, account_name)
     except Exception as e:
-        return JSONResponse(content={"error": str(e), "account_used": account_name}, status_code=500)
+        return handle_api_error(e, account_name)
+
 
 
 # Account Management Endpoints

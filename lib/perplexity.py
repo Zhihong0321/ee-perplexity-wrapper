@@ -302,8 +302,8 @@ class Client:
         # Merge user params
         params = dict(default_params)
         if query_params:
-            for k, v in query_params.items():
-                params[k] = v
+            params.update(query_params)
+        
         # Handle list params for supported_block_use_cases
         query_items = []
         for k, v in params.items():
@@ -317,6 +317,7 @@ class Client:
         resp = self.session.get(url)
         resp.raise_for_status()
         return resp.json()
+
 
     def list_collections(self, limit=30, offset=0):
         """Get list of user's collections with real UUIDs"""
