@@ -4,7 +4,10 @@ import json
 import random
 import mimetypes
 from uuid import uuid4
-from curl_cffi import requests, CurlMime
+from curl_cffi.requests import AsyncSession
+from curl_cffi import CurlMime
+from urllib.parse import urlencode
+import asyncio
 
 
 class Client:
@@ -14,7 +17,7 @@ class Client:
 
     def __init__(self, cookies={}):
         # Initialize an HTTP session with default headers and optional cookies
-        self.session = requests.Session(
+        self.session = AsyncSession(
             headers={
                 "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
                 "accept-language": "en-US,en;q=0.9",
@@ -47,9 +50,18 @@ class Client:
             r'"(https://www\.perplexity\.ai/api/auth/callback/email\?callbackUrl=.*?)"'
         )
         self.timestamp = format(random.getrandbits(32), "08x")
-        self.session.get("https://www.perplexity.ai/api/auth/session")
+        # Note: The original `self.session.get` call is now asynchronous.
+        # We need to run it in an async context, which can be done with `asyncio.run()`
+        # or by making the surrounding code async. For now, we'll assume this is
+        # handled by the calling code that initializes the Client.
+        # import asyncio
+        # asyncio.run(self.session.get("https://www.perplexity.ai/api/auth/session"))
 
-    def search(
+    async def init(self):
+        await self.session.get("https://www.perplexity.ai/api/auth/session")
+
+
+    async def search(
         self,
         query,
         mode="auto",
@@ -61,6 +73,8 @@ class Client:
         follow_up=None,
         incognito=False,
         collection_uuid=None,
+        frontend_uuid=None,
+        frontend_context_uuid=None,
     ):
         """
         Executes a search query on Perplexity AI.
@@ -76,6 +90,8 @@ class Client:
         - follow_up: Information for follow-up queries.
         - incognito: Whether to enable incognito mode.
         - collection_uuid: UUID of the collection (space) to search within.
+        - frontend_uuid: UUID for the frontend instance.
+        - frontend_context_uuid: UUID for the frontend context (conversation/thread).
         """
         # Validate input parameters
         assert mode in ["auto", "pro", "reasoning", "deep research"], (
@@ -122,18 +138,17 @@ class Client:
         uploaded_files = []
         for filename, file in files.items():
             file_type = mimetypes.guess_type(filename)[0]
-            file_upload_info = (
-                self.session.post(
-                    "https://www.perplexity.ai/rest/uploads/create_upload_url?version=2.18&source=default",
-                    json={
-                        "content_type": file_type,
-                        "file_size": sys.getsizeof(file),
-                        "filename": filename,
-                        "force_image": False,
-                        "source": "default",
-                    },
-                )
-            ).json()
+            file_upload_info_resp = await self.session.post(
+                "https://www.perplexity.ai/rest/uploads/create_upload_url?version=2.18&source=default",
+                json={
+                    "content_type": file_type,
+                    "file_size": sys.getsizeof(file),
+                    "filename": filename,
+                    "force_image": False,
+                    "source": "default",
+                },
+            )
+            file_upload_info = file_upload_info_resp.json()
 
             # Upload the file to the server
             mp = CurlMime()
@@ -143,7 +158,7 @@ class Client:
                 name="file", content_type=file_type, filename=filename, data=file
             )
 
-            upload_resp = self.session.post(
+            upload_resp = await self.session.post(
                 file_upload_info["s3_bucket_url"], multipart=mp
             )
 
@@ -169,8 +184,8 @@ class Client:
                 "attachments": uploaded_files + follow_up["attachments"]
                 if follow_up
                 else uploaded_files,
-                "frontend_context_uuid": str(uuid4()),
-                "frontend_uuid": str(uuid4()),
+                "frontend_context_uuid": frontend_context_uuid if frontend_context_uuid else str(uuid4()),
+                "frontend_uuid": frontend_uuid if frontend_uuid else str(uuid4()),
                 "is_incognito": incognito,
                 "language": language,
                 "last_backend_uuid": follow_up["backend_uuid"] if follow_up else None,
@@ -203,18 +218,18 @@ class Client:
         }
 
         # Send the query request and handle the response
-        resp = self.session.post(
+        resp = await self.session.post(
             "https://www.perplexity.ai/rest/sse/perplexity_ask",
             json=json_data,
             stream=True,
         )
         chunks = []
 
-        def stream_response(resp):
+        async def stream_response(resp):
             """
             Generator for streaming responses.
             """
-            for chunk in resp.iter_lines(delimiter=b"\r\n\r\n"):
+            async for chunk in resp.aiter_lines(delimiter=b"\r\n\r\n"):
                 content = chunk.decode("utf-8")
 
                 if content.startswith("event: message\r\n"):
@@ -233,7 +248,7 @@ class Client:
         if stream:
             return stream_response(resp)
 
-        for chunk in resp.iter_lines(delimiter=b"\r\n\r\n"):
+        async for chunk in resp.aiter_lines(delimiter=b"\r\n\r\n"):
             content = chunk.decode("utf-8")
 
             if content.startswith("event: message\r\n"):
@@ -246,7 +261,7 @@ class Client:
             elif content.startswith("event: end_of_stream\r\n"):
                 return chunks[-1]
 
-    def get_threads(self, limit=20, offset=0, search_term=""):
+    async def get_threads(self, limit=20, offset=0, search_term=""):
         """
         Fetches a list of threads from Perplexity AI.
 
@@ -257,11 +272,11 @@ class Client:
         """
         url = "https://www.perplexity.ai/rest/thread/list_ask_threads?version=2.18&source=default"
         payload = {"limit": limit, "offset": offset, "search_term": search_term}
-        resp = self.session.post(url, json=payload)
+        resp = await self.session.post(url, json=payload)
         resp.raise_for_status()
         return resp.json()
 
-    def get_thread_details_by_slug(self, slug, query_params=None):
+    async def get_thread_details_by_slug(self, slug, query_params=None):
         """
         Fetches thread details using the provided slug from the new endpoint.
 
@@ -269,8 +284,6 @@ class Client:
         - slug: The thread slug (string)
         - query_params: Optional dict of query parameters to override defaults
         """
-        from urllib.parse import urlencode
-
         default_params = {
             "with_parent_info": "true",
             "with_schematized_response": "true",
@@ -314,36 +327,30 @@ class Client:
                 query_items.append((k, v))
         query_string = urlencode(query_items)
         url = f"https://www.perplexity.ai/rest/thread/{slug}?{query_string}"
-        resp = self.session.get(url)
+        resp = await self.session.get(url)
         resp.raise_for_status()
         return resp.json()
 
 
-    def list_collections(self, limit=30, offset=0):
+    async def list_collections(self, limit=30, offset=0):
         """Get list of user's collections with real UUIDs"""
         url = "https://www.perplexity.ai/rest/collections/list_recent"
         params = {"version": "2.18", "source": "default"}
-        resp = self.session.get(url, params=params)
+        resp = await self.session.get(url, params=params)
         
         data = resp.json()
         
         if isinstance(data, list):
-            mapped_collections = []
-            for item in data:
+            async def get_uuid_for_collection(item):
                 slug = item.get('link', '').split('/')[-1] if item.get('link') else ''
-                
-                # Fetch details to get the real UUID
-                # Note: This N+1 request pattern might be slow for many collections
-                # but is necessary as list_recent doesn't return UUIDs
                 real_uuid = slug # Default fallback
                 try:
-                    details = self.get_collection(collection_slug=slug)
+                    details = await self.get_collection(collection_slug=slug)
                     if 'uuid' in details:
                         real_uuid = details['uuid']
                 except Exception:
                     pass
-
-                mapped_collections.append({
+                return {
                     "title": item.get('title', ''),
                     "slug": slug,
                     "uuid": real_uuid,
@@ -351,16 +358,19 @@ class Client:
                     "count": 0,
                     "access_state": "private",
                     "emoji": item.get('emoji', '')
-                })
+                }
+
+            tasks = [get_uuid_for_collection(item) for item in data]
+            mapped_collections = await asyncio.gather(*tasks)
             return {"data": mapped_collections}
             
         return data
 
-    def get_collection(self, collection_slug=None, collection_uuid=None):
+    async def get_collection(self, collection_slug=None, collection_uuid=None):
         """Get collection details by slug or UUID"""
         if collection_slug:
             url = f"https://www.perplexity.ai/rest/collections/get_collection?collection_slug={collection_slug}&version=2.18&source=default"
-            resp = self.session.get(url)
+            resp = await self.session.get(url)
         elif collection_uuid:
             # Currently the API seems to use slug primarily for retrieval, 
             # but if there's a UUID endpoint we would use it here. 
@@ -372,9 +382,9 @@ class Client:
         
         return resp.json()
 
-    def list_collection_threads(self, collection_slug, limit=20, offset=0, filter_by_user=True, filter_by_shared_threads=False):
+    async def list_collection_threads(self, collection_slug, limit=20, offset=0, filter_by_user=True, filter_by_shared_threads=False):
         """Get threads from specific collection"""
-        url = f"https://www.perplexity.ai/rest/collections/list_collection_threads"
+        url = "https://www.perplexity.ai/rest/collections/list_collection_threads"
         params = {
             "collection_slug": collection_slug,
             "limit": limit,
@@ -384,6 +394,5 @@ class Client:
             "version": "2.18",
             "source": "default"
         }
-        resp = self.session.post(url, json=params)
+        resp = await self.session.post(url, json=params)
         return resp.json()
-

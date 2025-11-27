@@ -32,7 +32,32 @@ except Exception as e:
     templates = None
 
 app = FastAPI(
-    title="Perplexity Multi-Account API", description="Multi-account Perplexity AI API with cookie management"
+    title="Perplexity Multi-Account API", 
+    description="""
+# Perplexity AI Wrapper API
+
+This API provides a programmatic interface to Perplexity AI, supporting multiple accounts, cookie management, and persistent conversations.
+
+## Features
+
+*   **Multi-Account Support**: Manage multiple Perplexity accounts with automatic cookie handling.
+*   **Persistent Conversations**: Maintain visual and logical threads using `frontend_context_uuid` and `backend_uuid`.
+*   **Perplexity Spaces**: Access and manage Collections (Spaces).
+*   **Streaming Support**: Real-time SSE (Server-Sent Events) responses.
+*   **Flexible Query Modes**: Support for various search modes (pro, reasoning, writing, etc.) and models.
+*   **Source Selection**: Filter by web, scholar, or social sources.
+
+## Usage Guide
+
+1.  **Authentication**: Add your Perplexity cookies via the `/api/account/add` endpoint or the dashboard.
+2.  **Querying**: Use `/api/query_sync` for JSON responses or `/api/query_async` for streaming.
+3.  **Threads**: To continue a conversation, pass the `backend_uuid` from the previous response and keep the same `frontend_context_uuid`.
+
+## Important Notes
+
+*   This is an unofficial wrapper.
+*   Ensure you comply with Perplexity's terms of service.
+"""
 )
 
 # Configure CORS
@@ -51,11 +76,13 @@ async def health_check():
     return {"status": "healthy", "message": "Perplexity Multi-Account API is running"}
 
 
-def get_perplexity_client(account_name: str) -> perplexity.Client:
+async def get_perplexity_client(account_name: str) -> perplexity.Client:
     """Get a Perplexity client for the specified account."""
     try:
         cookies = cookie_manager.get_account_cookies(account_name)
-        return perplexity.Client(cookies)
+        client = perplexity.Client(cookies)
+        await client.init()  # Initialize the async session
+        return client
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -71,16 +98,18 @@ async def generate_sse_stream(
     incognito: bool,
     account_name: str,
     collection_uuid: Optional[str] = None,
+    frontend_uuid: Optional[str] = None,
+    frontend_context_uuid: Optional[str] = None,
 ):
     """Generate SSE stream from Perplexity responses."""
     response_count = 0
 
-    # Get the specific account client
-    client = get_perplexity_client(account_name)
-    
-    # Start the streaming search in a sync function
     try:
-        for stream in client.search(
+        # Get the specific account client
+        client = await get_perplexity_client(account_name)
+    
+        # Start the streaming search
+        async for stream in await client.search(
             query,
             mode=mode,
             model=model,
@@ -91,6 +120,8 @@ async def generate_sse_stream(
             follow_up=follow_up,
             incognito=incognito,
             collection_uuid=collection_uuid,
+            frontend_uuid=frontend_uuid,
+            frontend_context_uuid=frontend_context_uuid,
         ):
             response_count += 1
             file_name = (
@@ -151,6 +182,8 @@ async def query_async(
     language: str = Query("en-US", description="Language"),
     incognito: bool = Query(False, description="Use incognito mode"),
     collection_uuid: Optional[str] = Query(None, description="Collection UUID to search within"),
+    frontend_uuid: Optional[str] = Query(None, description="Frontend UUID"),
+    frontend_context_uuid: Optional[str] = Query(None, description="Frontend Context UUID (Thread ID)"),
 ):
     """Stream Perplexity AI responses as Server-Sent Events (SSE). Handles both new and follow-up queries."""
     sources_list = [s.strip() for s in sources.split(",")]
@@ -169,6 +202,8 @@ async def query_async(
             incognito=incognito,
             account_name=account_name,
             collection_uuid=collection_uuid,
+            frontend_uuid=frontend_uuid,
+            frontend_context_uuid=frontend_context_uuid,
         ),
         media_type="text/event-stream",
     )
@@ -195,6 +230,8 @@ async def query_sync(
     language: str = Query("en-US", description="Language"),
     incognito: bool = Query(False, description="Use incognito mode"),
     collection_uuid: Optional[str] = Query(None, description="Collection UUID to search within"),
+    frontend_uuid: Optional[str] = Query(None, description="Frontend UUID"),
+    frontend_context_uuid: Optional[str] = Query(None, description="Frontend Context UUID (Thread ID)"),
 ):
     """Query Perplexity AI and return the full response as JSON (no streaming)."""
     sources_list = [s.strip() for s in sources.split(",")]
@@ -203,9 +240,9 @@ async def query_sync(
     )
     try:
         # Get the specific account client
-        client = get_perplexity_client(account_name)
+        client = await get_perplexity_client(account_name)
         
-        result = client.search(
+        result = await client.search(
             q,
             mode=mode,
             model=model,
@@ -216,6 +253,8 @@ async def query_sync(
             follow_up=follow_up,
             incognito=incognito,
             collection_uuid=collection_uuid,
+            frontend_uuid=frontend_uuid,
+            frontend_context_uuid=frontend_context_uuid,
         )
         file_name = f"API-{account_name}-{datetime.now().strftime('%Y%m%d%H%M%S')}-sync"
         save_resp(result, file_name)
@@ -242,9 +281,9 @@ async def get_threads(
     """Fetch a list of threads from Perplexity AI."""
     try:
         # Get the specific account client
-        client = get_perplexity_client(account_name)
+        client = await get_perplexity_client(account_name)
         
-        threads = client.get_threads(
+        threads = await client.get_threads(
             limit=limit, offset=offset, search_term=search_term
         )
         
@@ -264,9 +303,9 @@ async def get_thread(
     """Fetch a specific thread by slug."""
     try:
         # Get the specific account client
-        client = get_perplexity_client(account_name)
+        client = await get_perplexity_client(account_name)
         
-        thread = client.get_thread_details_by_slug(slug)
+        thread = await client.get_thread_details_by_slug(slug)
         
         # Mark account as used
         await cookie_manager.mark_account_used(account_name)
@@ -284,8 +323,8 @@ async def list_collections(
 ):
     """List collections for account"""
     try:
-        client = get_perplexity_client(account_name)
-        collections = client.list_collections(limit=limit, offset=offset)
+        client = await get_perplexity_client(account_name)
+        collections = await client.list_collections(limit=limit, offset=offset)
         await cookie_manager.mark_account_used(account_name)
         return create_api_response(collections, account_name)
     except Exception as e:
@@ -299,8 +338,8 @@ async def get_collection_details(
 ):
     """Get collection details"""
     try:
-        client = get_perplexity_client(account_name)
-        details = client.get_collection(collection_slug=collection_slug)
+        client = await get_perplexity_client(account_name)
+        details = await client.get_collection(collection_slug=collection_slug)
         await cookie_manager.mark_account_used(account_name)
         return create_api_response(details, account_name)
     except Exception as e:
@@ -316,8 +355,8 @@ async def get_collection_threads(
 ):
     """Get threads from collection"""
     try:
-        client = get_perplexity_client(account_name)
-        threads = client.list_collection_threads(collection_slug, limit=limit, offset=offset)
+        client = await get_perplexity_client(account_name)
+        threads = await client.list_collection_threads(collection_slug, limit=limit, offset=offset)
         await cookie_manager.mark_account_used(account_name)
         return create_api_response(threads, account_name)
     except Exception as e:
@@ -332,7 +371,7 @@ async def dashboard(request: Request):
     accounts = cookie_manager.get_all_accounts()
     
     if templates is None:
-        return JSONResponse(content({
+        return JSONResponse(content={
             "message": "Template loading failed, using JSON response",
             "accounts": accounts,
             "html_available": False,
@@ -343,7 +382,7 @@ async def dashboard(request: Request):
                 "api_docs": "/docs",
                 "health": "/health"
             }
-        }))
+        })
     
     return templates.TemplateResponse("dashboard.html", {"request": request, "accounts": accounts})
 
@@ -416,9 +455,9 @@ async def list_accounts():
 async def test_account(account_name: str):
     """Test if an account's cookies are valid."""
     try:
-        client = get_perplexity_client(account_name)
+        client = await get_perplexity_client(account_name)
         # Simple test - try to get threads (this validates the session)
-        threads = client.get_threads(limit=1, offset=0, search_term="")
+        threads = await client.get_threads(limit=1, offset=0, search_term="")
         await cookie_manager.mark_account_validated(account_name, True)
         return JSONResponse(content={"status": "success", "message": f"Account '{account_name}' is valid", "valid": True})
     except Exception as e:

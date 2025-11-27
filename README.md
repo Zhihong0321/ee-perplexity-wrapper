@@ -1,69 +1,92 @@
-# About
+# Perplexity AI Wrapper API
 
-Unofficial Python wrapper and API server for Perplexity AI's web interface.
+A powerful, unofficial Python wrapper and API for Perplexity AI. This project provides a FastAPI-based server that enables programmatic access to Perplexity's search capabilities, including multi-account support, persistent conversations, and access to Perplexity Spaces (Collections).
 
-## Requirements
+## 🚀 Features
 
-- Python 3.13+
-- See `pyproject.toml` for dependencies (curl-cffi, fastapi, uvicorn, websocket-client)
+*   **Full Perplexity AI Access**: Query using various modes (Copilot/Pro, Reasoning, Writing, etc.) and models (GPT-4o, Claude 3, Sonar).
+*   **Multi-Account Management**: seamless switching between multiple accounts with persistent cookie management.
+*   **Persistent Conversations**:
+    *   Maintain visual threads in your Perplexity history using `frontend_context_uuid`.
+    *   Continue logical conversation context using `backend_uuid`.
+*   **Streaming Support**: Real-time server-sent events (SSE) for token-by-token responses.
+*   **Perplexity Spaces**: List and query within your Collections (Spaces).
+*   **Robust Error Handling**: Automatic retries and detailed error reporting.
+*   **Source Filtering**: Restrict searches to Web, Scholar, or Social sources.
 
-## Installation
+## 🛠️ Installation
 
-1. Clone this repository:
-   ```sh
-   git clone <your-repo-url>
-   cd perplexity-web-wrapper
-   ```
-2. Install dependencies using [uv](https://github.com/astral-sh/uv):
-   ```sh
-   uv sync
-   ```
+1.  **Clone the repository**:
+    ```bash
+    git clone https://github.com/yourusername/perplexity-wrapper.git
+    cd perplexity-wrapper
+    ```
 
-## Configuration
+2.  **Install dependencies**:
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-- Place your Perplexity cookies in `perplexity_cookies.json` (see example in repo).
-- The API and library will use these cookies for authenticated requests.
+3.  **Run the server**:
+    ```bash
+    python run_server.py
+    ```
+    The API will be available at `http://localhost:8000`.
 
-## Running the API Server
+## 📖 API Usage
 
-From the project root, start the FastAPI server using Uvicorn:
+### 1. Authentication (Adding Accounts)
 
-```sh
-uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
-```
+You need to extract your cookies from a logged-in Perplexity session.
+*   **Method**: `POST /api/account/add`
+*   **Parameters**:
+    *   `account_name`: A unique alias for this account (e.g., "personal", "work").
+    *   `cookie_data`: The raw JSON cookie array (e.g., exported via a browser extension like "EditThisCookie").
+    *   `display_name`: (Optional) A friendly name.
 
-## Supported Library Functionality
+### 2. Search Queries
 
-| Functionality | Method/Attribute       | Description                                                               |
-| ------------- | ---------------------- | ------------------------------------------------------------------------- |
-| Search        | `Client.search()`      | Query Perplexity AI with various modes, models, sources, and file uploads |
-| List Threads  | `Client.get_threads()` | Fetch a list of threads from Perplexity AI                                |
+#### Synchronous (JSON Response)
+*   **Endpoint**: `GET /api/query_sync`
+*   **Parameters**:
+    *   `q`: Your search query.
+    *   `account_name`: The account alias to use.
+    *   `mode`: Search mode (`auto`, `pro`, `reasoning`, etc.).
+    *   `model`: Specific model (e.g., `gpt-4o`, `claude 3.7 sonnet`).
+    *   `frontend_context_uuid`: (Optional) **Crucial for persistent threads**. Pass a stable UUID to keep this chat in one thread.
+    *   `backend_uuid`: (Optional) Pass the `backend_uuid` from the *previous* response to continue the conversation context.
 
-## API Endpoints
+#### Asynchronous (Streaming)
+*   **Endpoint**: `GET /api/query_async`
+*   **Response**: Server-Sent Events (SSE) stream.
+*   **Parameters**: Same as synchronous endpoint.
 
-See `/docs` (Swagger UI) for full API details and interactive usage.
+### 3. Managing Threads & Collections
 
-## Library Usage
+*   **List Recent Threads**: `GET /api/threads`
+*   **Get Specific Thread**: `GET /api/threads/{slug}`
+*   **List Collections**: `GET /api/collections`
+*   **Get Collection Threads**: `GET /api/collections/{collection_slug}/threads`
 
-You can use the Python client directly:
+## 🧩 Persistent Conversations (How-To)
 
-```python
-from lib.perplexity import Client
-import json
+To create a chat experience like the official website:
 
-with open("perplexity_cookies.json") as f:
-    cookies = json.load(f)
+1.  **Start a new thread**:
+    *   Generate a random UUID (e.g., `my-thread-001`).
+    *   Call `/api/query_sync?q=Hello&frontend_context_uuid=my-thread-001`.
+    *   Save the `backend_uuid` from the response.
 
-client = Client(cookies)
-result = client.search("What is Perplexity AI?", mode="auto")
-print(result)
-```
+2.  **Continue the thread**:
+    *   Call `/api/query_sync?q=FollowUp&frontend_context_uuid=my-thread-001&backend_uuid={PREVIOUS_BACKEND_UUID}`.
+    *   The chat will visually appear in the same thread in your Perplexity history.
 
-## Notes
+## ⚙️ Configuration
 
-- This is an unofficial project and not affiliated with Perplexity AI.
-- For production, restrict CORS and secure your cookies.
+*   **Storage**: Cookies are stored in `accounts.json`.
+*   **Environment Variables**:
+    *   `STORAGE_ROOT`: Custom path for storing data/logs (default: `/app/storage` or local `logs/`).
 
-## License
+## ⚠️ Disclaimer
 
-MIT. Contributions welcome!
+This is an unofficial API wrapper and is not affiliated with Perplexity AI. Use it responsibly and in accordance with Perplexity's Terms of Service.
