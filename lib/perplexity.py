@@ -349,35 +349,32 @@ class Client:
 
     async def list_collections(self, limit=30, offset=0):
         """Get list of user's collections with real UUIDs"""
-        url = "https://www.perplexity.ai/rest/collections/list_recent"
-        params = {"version": "2.18", "source": "default"}
+        url = "https://www.perplexity.ai/rest/collections/list_user_collections"
+        params = {
+            "limit": limit,
+            "offset": offset,
+            "version": "2.18",
+            "source": "default"
+        }
         resp = await self.session.get(url, params=params)
         
         data = resp.json()
         
         if isinstance(data, list):
-            async def get_uuid_for_collection(item):
-                slug = item.get('link', '').split('/')[-1] if item.get('link') else ''
-                real_uuid = slug # Default fallback
-                try:
-                    details = await self.get_collection(collection_slug=slug)
-                    if 'uuid' in details:
-                        real_uuid = details['uuid']
-                except Exception:
-                    pass
-                return {
-                    "title": item.get('title', ''),
-                    "slug": slug,
-                    "uuid": real_uuid,
-                    "description": "",
-                    "count": 0,
-                    "access_state": "private",
-                    "emoji": item.get('emoji', '')
-                }
-
-            tasks = [get_uuid_for_collection(item) for item in data]
-            mapped_collections = await asyncio.gather(*tasks)
-            return {"data": mapped_collections}
+            return {
+                "data": [
+                    {
+                        "title": item.get('title', ''),
+                        "slug": item.get('slug', ''),
+                        "uuid": item.get('uuid', ''),
+                        "description": item.get('description', ''),
+                        "count": item.get('thread_count', 0),
+                        "access_state": "private",
+                        "emoji": item.get('emoji', '')
+                    }
+                    for item in data
+                ]
+            }
             
         return data
 
