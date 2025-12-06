@@ -12,19 +12,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import json
 from lib import perplexity
 from lib.cookie_manager import CookieManager
-from lib.queue_manager import get_queue_manager, get_priority_from_string
 from typing import List, Optional
 from datetime import datetime
 from api.utils import extract_answer, save_resp, create_api_response, handle_api_error
 from api.config import get_storage_file_path
-from api.queue_endpoints import router as queue_router
 
 # Initialize cookie manager with persistent storage path
 storage_file = get_storage_file_path("accounts.json")
 cookie_manager = CookieManager(storage_file)
-
-# Initialize queue manager
-async_queue_manager = None
 
 # Templates
 try:
@@ -73,9 +68,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Include queue router
-app.include_router(queue_router)
 
 # Health check endpoint
 @app.get("/health")
