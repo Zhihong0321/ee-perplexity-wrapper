@@ -87,6 +87,7 @@
             try {
                 const response = await fetch('/api/account/list');
                 const result = await response.json();
+                console.log('Accounts API result:', result); // Debug line
                 
                 const select = document.getElementById('accountSelect');
                 select.innerHTML = '<option value="">Select Account...</option>';
