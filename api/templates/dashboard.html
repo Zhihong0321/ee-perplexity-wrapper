@@ -152,6 +152,107 @@
                 </div>
             </div>
 
+            <!-- Queue Management -->
+            <div class="col-span-1 lg:col-span-2">
+                <div class="card">
+                    <h2 class="text-xl font-semibold mb-4">Queue Management</h2>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Queue Status -->
+                        <div>
+                            <h3 class="font-semibold text-gray-900 mb-3">Queue Status</h3>
+                            <div id="queueStatus" class="bg-gray-50 p-4 rounded-md">
+                                <div class="flex justify-center items-center h-32">
+                                    <div class="text-gray-500">Loading queue status...</div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-3 flex gap-2">
+                                <button onclick="startQueue()" class="btn-secondary text-sm">
+                                    Start Queue
+                                </button>
+                                <button onclick="stopQueue()" class="btn-secondary text-sm">
+                                    Stop Queue
+                                </button>
+                                <button onclick="refreshQueueStatus()" class="btn-secondary text-sm">
+                                    Refresh
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Behavior Settings -->
+                        <div>
+                            <h3 class="font-semibold text-gray-900 mb-3">Human Behavior Settings</h3>
+                            <div class="space-y-3">
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Min Delay (sec)</label>
+                                        <input type="number" id="minDelay" value="5" min="1" max="60" step="0.5"
+                                            class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Max Delay (sec)</label>
+                                        <input type="number" id="maxDelay" value="20" min="1" max="300" step="1"
+                                            class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Peak Hours Start</label>
+                                        <input type="number" id="peakStart" value="9" min="0" max="23"
+                                            class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Peak Hours End</label>
+                                        <input type="number" id="peakEnd" value="17" min="0" max="23"
+                                            class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Weekend Factor</label>
+                                        <input type="number" id="weekendFactor" value="0.3" min="0.1" max="1.0" step="0.1"
+                                            class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Burst Probability</label>
+                                        <input type="number" id="burstProb" value="0.1" min="0" max="1" step="0.05"
+                                            class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
+                                    </div>
+                                </div>
+                                
+                                <button onclick="updateBehaviorSettings()" class="btn-primary w-full">
+                                    Update Settings
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Queue API Examples -->
+                    <div class="mt-6 bg-gray-50 p-4 rounded-md">
+                        <h3 class="font-semibold text-sm mb-2">Queue-Based Query Examples:</h3>
+                        <div class="space-y-2 text-sm">
+                            <div>
+                                <code class="block bg-gray-900 text-green-400 p-2 rounded">
+GET /api/query_queue_sync?q=What%20is%20AI?&priority=normal&timeout=300
+                                </code>
+                            </div>
+                            <div>
+                                <code class="block bg-gray-900 text-green-400 p-2 rounded">
+GET /api/query_queue_async?q=Python%20tutorial?&priority=high
+                                </code>
+                            </div>
+                            <div>
+                                <code class="block bg-gray-900 text-green-400 p-2 rounded">
+GET /api/queue/status
+                                </code>
+                            </div>
+                            <div>
+                                <code class="block bg-gray-900 text-green-400 p-2 rounded">
+POST /api/queue/settings/behavior
+                                </code>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- API Usage Example -->
             <div class="col-span-1">
                 <div class="card">
@@ -463,9 +564,164 @@ GET /api/query_async?account_name=personal&q=News&collection_uuid=...
             }, 3000);
         }
         
+        // Queue Management Functions
+        async function refreshQueueStatus() {
+            const statusContainer = document.getElementById('queueStatus');
+            statusContainer.innerHTML = '<div class="flex justify-center items-center h-32"><div class="text-gray-500">Loading queue status...</div></div>';
+            
+            try {
+                const response = await fetch('/api/queue/status');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    const status = data.queue_status;
+                    let html = '<div class="space-y-3">';
+                    
+                    // Queue status
+                    html += `<div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-600">Queue Manager:</span>
+                        <span class="${status.is_running ? 'status-active' : 'status-invalid'}">${status.is_running ? 'Running' : 'Stopped'}</span>
+                    </div>`;
+                    
+                    html += `<div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-600">Active Requests:</span>
+                        <span class="text-sm font-semibold">${status.active_requests}</span>
+                    </div>`;
+                    
+                    // Queue sizes
+                    html += '<div class="pt-2 border-t border-gray-200">';
+                    html += '<div class="text-xs font-semibold text-gray-700 mb-2">Queue Sizes:</div>';
+                    Object.entries(status.queue_sizes).forEach(([priority, size]) => {
+                        html += `<div class="flex justify-between text-xs">
+                            <span class="text-gray-600">${priority}:</span>
+                            <span class="font-semibold">${size}</span>
+                        </div>`;
+                    });
+                    html += '</div>';
+                    
+                    // Account usage
+                    html += '<div class="pt-2 border-t border-gray-200">';
+                    html += '<div class="text-xs font-semibold text-gray-700 mb-2">Account Usage:</div>';
+                    Object.entries(status.account_semaphores).forEach(([account, usage]) => {
+                        html += `<div class="flex justify-between text-xs">
+                            <span class="text-gray-600">${account}:</span>
+                            <span class="font-semibold">${usage}</span>
+                        </div>`;
+                    });
+                    html += '</div>';
+                    
+                    html += '</div>';
+                    statusContainer.innerHTML = html;
+                    
+                    // Load behavior settings
+                    loadBehaviorSettings();
+                } else {
+                    statusContainer.innerHTML = '<div class="text-red-600 text-center">Error loading queue status</div>';
+                }
+            } catch (error) {
+                statusContainer.innerHTML = '<div class="text-red-600 text-center">Network error loading queue status</div>';
+            }
+        }
+        
+        async function loadBehaviorSettings() {
+            try {
+                const response = await fetch('/api/queue/settings/behavior');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    const settings = data.settings;
+                    document.getElementById('minDelay').value = settings.min_delay_seconds;
+                    document.getElementById('maxDelay').value = settings.max_delay_seconds;
+                    document.getElementById('peakStart').value = settings.peak_hours_start;
+                    document.getElementById('peakEnd').value = settings.peak_hours_end;
+                    document.getElementById('weekendFactor').value = settings.weekend_factor;
+                    document.getElementById('burstProb').value = settings.burst_probability;
+                }
+            } catch (error) {
+                console.error('Error loading behavior settings:', error);
+            }
+        }
+        
+        async function updateBehaviorSettings() {
+            const settings = {
+                min_delay_seconds: parseFloat(document.getElementById('minDelay').value),
+                max_delay_seconds: parseFloat(document.getElementById('maxDelay').value),
+                peak_hours_start: parseInt(document.getElementById('peakStart').value),
+                peak_hours_end: parseInt(document.getElementById('peakEnd').value),
+                weekend_factor: parseFloat(document.getElementById('weekendFactor').value),
+                burst_probability: parseFloat(document.getElementById('burstProb').value),
+                burst_size: 3,
+                idle_probability: 0.05
+            };
+            
+            try {
+                const response = await fetch('/api/queue/settings/behavior', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(settings)
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showToast('Behavior settings updated successfully!', 'success');
+                } else {
+                    showToast('Error updating settings: ' + data.message, 'error');
+                }
+            } catch (error) {
+                showToast('Network error: ' + error.message, 'error');
+            }
+        }
+        
+        async function startQueue() {
+            try {
+                const response = await fetch('/api/queue/start', {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showToast('Queue manager started!', 'success');
+                    refreshQueueStatus();
+                } else {
+                    showToast('Error starting queue: ' + data.message, 'error');
+                }
+            } catch (error) {
+                showToast('Network error: ' + error.message, 'error');
+            }
+        }
+        
+        async function stopQueue() {
+            try {
+                const response = await fetch('/api/queue/stop', {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showToast('Queue manager stopped!', 'success');
+                    refreshQueueStatus();
+                } else {
+                    showToast('Error stopping queue: ' + data.message, 'error');
+                }
+            } catch (error) {
+                showToast('Network error: ' + error.message, 'error');
+            }
+        }
+        
+        // Auto-refresh queue status
+        setInterval(refreshQueueStatus, 30000); // Refresh every 30 seconds
+        
         // Event listeners
         document.getElementById('addAccountForm').addEventListener('submit', addAccount);
         document.getElementById('updateAccountForm').addEventListener('submit', submitUpdateAccount);
+        
+        // Load queue status on page load
+        document.addEventListener('DOMContentLoaded', refreshQueueStatus);
     </script>
 </body>
 </html>
