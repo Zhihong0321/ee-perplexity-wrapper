@@ -379,6 +379,7 @@ async def dashboard(request: Request):
                 "account_list": "/api/account/list",
                 "add_account": "/api/account/add",
                 "test_account": "/api/account/test/{account_name}",
+                "chat_list": "/chats",
                 "api_docs": "/docs",
                 "health": "/health"
             }
@@ -476,3 +477,35 @@ async def delete_account(account_name: str):
             return JSONResponse(content={"status": "error", "message": f"Account '{account_name}' not found"}, status_code=404)
     except Exception as e:
         return JSONResponse(content={"status": "error", "message": f"Failed to delete account: {str(e)}"}, status_code=500)
+
+
+@app.delete("/api/threads/{thread_uuid}")
+async def delete_thread(
+    thread_uuid: str,
+    account_name: str = Query(..., description="Account name to use")
+):
+    """Delete a thread by UUID."""
+    try:
+        # Get the specific account client
+        client = await get_perplexity_client(account_name)
+        
+        result = await client.delete_thread(thread_uuid)
+        
+        # Mark account as used
+        await cookie_manager.mark_account_used(account_name)
+        
+        return create_api_response(result, account_name)
+    except Exception as e:
+        return handle_api_error(e, account_name)
+
+
+@app.get("/chats")
+async def chat_list_page(request: Request):
+    """Chat list page with delete functionality."""
+    if templates is None:
+        return JSONResponse(content={
+            "message": "Template loading failed, using JSON response",
+            "html_available": False
+        })
+    
+    return templates.TemplateResponse("chat_list.html", {"request": request})
