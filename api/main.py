@@ -16,6 +16,8 @@ from typing import List, Optional
 from datetime import datetime
 from api.utils import extract_answer, save_resp, create_api_response, handle_api_error
 from api.config import get_storage_file_path
+import asyncio
+import time
 
 # Initialize cookie manager with persistent storage path
 storage_file = get_storage_file_path("accounts.json")
@@ -68,6 +70,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Import and include queue router
+try:
+    from api.queue_endpoints import router as queue_router
+    app.include_router(queue_router)
+    print("✓ Queue management endpoints loaded")
+except Exception as e:
+    print(f"⚠ Failed to load queue endpoints: {e}")
+
+# Global queue manager
+async_queue_manager = None
+
+async def get_queue_manager(cookie_mgr):
+    """Get or initialize the global queue manager"""
+    global async_queue_manager
+    if async_queue_manager is None:
+        from lib.queue_manager import QueueManager
+        async_queue_manager = QueueManager(cookie_mgr)
+        await async_queue_manager.start()
+    return async_queue_manager
 
 # Health check endpoint
 @app.get("/health")
