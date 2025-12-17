@@ -313,9 +313,16 @@ async def queue_health_check(cookie_manager: CookieManager = Depends(get_cookie_
     queue_mgr = await get_global_queue_manager(cookie_manager)
     status = queue_mgr.get_queue_status()
     
+    # Check accounts
+    accounts = cookie_manager.get_all_accounts()
+    
     return {
         "status": "healthy" if status["is_running"] else "stopped",
         "queue_manager": status["is_running"],
         "active_requests": len(status["active_requests"]),
-        "total_queue_size": sum(status["queue_sizes"].values())
+        "total_queue_size": sum(status["queue_sizes"].values()),
+        "accounts_configured": len(accounts),
+        "account_names": list(accounts.keys()),
+        "pending_results": len(queue_mgr.results),
+        "stats": status.get("statistics", {})
     }

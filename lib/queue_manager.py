@@ -127,14 +127,18 @@ class QueueManager:
             logger.error(f"Failed to save results: {e}")
     
     async def store_result(self, request_id: str, result: Any = None, error: str = None):
-        """Store a completed result"""
+        """Store a completed result - preserves original metadata"""
+        existing = self.results.get(request_id, {})
         self.results[request_id] = {
             'status': 'completed' if error is None else 'failed',
             'result': result,
             'error': error,
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now().isoformat(),
+            'priority': existing.get('priority'),
+            'account_name': existing.get('account_name')
         }
         await self._save_results()
+        logger.info(f"Stored result for {request_id}: status={self.results[request_id]['status']}")
     
     def get_result(self, request_id: str) -> Optional[Dict[str, Any]]:
         """Get result by request_id. Returns None if not found."""
@@ -205,6 +209,11 @@ class QueueManager:
     async def _get_available_account(self) -> Optional[str]:
         """Get an account that's not currently overloaded"""
         accounts = self.cookie_manager.get_all_accounts()
+        
+        if not accounts:
+            logger.error("No accounts configured in cookie_manager!")
+            return None
+        
         available_accounts = []
         
         for account_name in accounts:
