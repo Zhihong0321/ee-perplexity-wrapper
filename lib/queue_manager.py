@@ -2,15 +2,31 @@ import asyncio
 import random
 import time
 import threading
+import json
+import os
 from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 import logging
+import aiofiles
 from lib import perplexity
 from lib.cookie_manager import CookieManager
 
 logger = logging.getLogger(__name__)
+
+def get_results_storage_path() -> str:
+    """Get path for queue results storage using Railway storage"""
+    env_storage = os.getenv("STORAGE_ROOT")
+    possible_paths = []
+    if env_storage:
+        possible_paths.append(env_storage)
+    possible_paths.extend(["/storage", "/app/storage"])
+    
+    for path in possible_paths:
+        if os.path.exists(path) and os.path.isdir(path):
+            return os.path.join(path, "queue_results.json")
+    return "queue_results.json"
 
 class RequestPriority(Enum):
     LOW = 1
@@ -74,6 +90,63 @@ class QueueManager:
             'average_wait_time': 0.0,
             'requests_per_hour': {}
         }
+        
+        # Result storage (non-blocking pattern)
+        self.results_storage_path = get_results_storage_path()
+        self.results: Dict[str, Dict[str, Any]] = {}  # request_id -> {status, result, error, timestamp}
+        self._load_results()
+    
+    def _load_results(self):
+        """Load results from persistent storage"""
+        try:
+            if os.path.exists(self.results_storage_path):
+                with open(self.results_storage_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    self.results = data.get('results', {})
+                    # Clean up old results (older than 1 hour)
+                    cutoff = (datetime.now() - timedelta(hours=1)).isoformat()
+                    self.results = {
+                        k: v for k, v in self.results.items() 
+                        if v.get('timestamp', '') > cutoff
+                    }
+                    logger.info(f"Loaded {len(self.results)} pending results from storage")
+        except Exception as e:
+            logger.warning(f"Failed to load results: {e}")
+            self.results = {}
+    
+    async def _save_results(self):
+        """Save results to persistent storage"""
+        try:
+            data = {
+                'results': self.results,
+                'last_updated': datetime.now().isoformat()
+            }
+            async with aiofiles.open(self.results_storage_path, 'w', encoding='utf-8') as f:
+                await f.write(json.dumps(data, indent=2, default=str))
+        except Exception as e:
+            logger.error(f"Failed to save results: {e}")
+    
+    async def store_result(self, request_id: str, result: Any = None, error: str = None):
+        """Store a completed result"""
+        self.results[request_id] = {
+            'status': 'completed' if error is None else 'failed',
+            'result': result,
+            'error': error,
+            'timestamp': datetime.now().isoformat()
+        }
+        await self._save_results()
+    
+    def get_result(self, request_id: str) -> Optional[Dict[str, Any]]:
+        """Get result by request_id. Returns None if not found."""
+        return self.results.get(request_id)
+    
+    async def delete_result(self, request_id: str) -> bool:
+        """Delete a result after it's been retrieved"""
+        if request_id in self.results:
+            del self.results[request_id]
+            await self._save_results()
+            return True
+        return False
     
     async def start(self):
         """Start the queue manager"""
@@ -206,7 +279,11 @@ class QueueManager:
                     if hasattr(client, 'session') and hasattr(client.session, 'close'):
                         await client.session.close()
                 
-                # Return result
+                # Store result for later retrieval (non-blocking pattern)
+                await self.store_result(request.id, result=result)
+                logger.info(f"Request {request.id} completed, result stored")
+                
+                # Also set future if provided (for sync callers)
                 if request.future and not request.future.done():
                     request.future.set_result(result)
                 
@@ -217,6 +294,10 @@ class QueueManager:
                 
         except Exception as e:
             logger.error(f"Request {request.id} failed: {str(e)}")
+            
+            # Store error for later retrieval
+            await self.store_result(request.id, error=str(e))
+            
             if request.future and not request.future.done():
                 request.future.set_exception(e)
             

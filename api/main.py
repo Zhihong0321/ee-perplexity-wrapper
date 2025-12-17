@@ -75,9 +75,9 @@ app.add_middleware(
 try:
     from api.queue_endpoints import router as queue_router
     app.include_router(queue_router)
-    print("✓ Queue management endpoints loaded")
+    print("[OK] Queue management endpoints loaded")
 except Exception as e:
-    print(f"⚠ Failed to load queue endpoints: {e}")
+    print(f"[WARN] Failed to load queue endpoints: {e}")
 
 # Global queue manager
 async_queue_manager = None
@@ -488,10 +488,11 @@ async def query_queue_async(
         
         return {
             "status": "submitted",
-            "message": "Query submitted to queue",
+            "message": "Query submitted to queue. Poll /api/queue/result/{request_id} for results.",
             "request_id": request_id,
             "priority": priority,
-            "account_name": account_name
+            "account_name": account_name,
+            "result_url": f"/api/queue/result/{request_id}"
         }
         
     except Exception as e:

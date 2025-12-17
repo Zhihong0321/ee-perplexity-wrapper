@@ -186,6 +186,101 @@ async def get_request_status(
         "queue_status": status
     }
 
+@router.get("/result/{request_id}")
+async def get_request_result(
+    request_id: str,
+    delete_after: bool = Query(False, description="Delete result after retrieval"),
+    cookie_manager: CookieManager = Depends(get_cookie_manager)
+):
+    """
+    Get the result of a completed request by request_id.
+    
+    Returns:
+    - status: "pending" if still processing, "completed" if done, "failed" if error
+    - result: The query result (if completed)
+    - error: Error message (if failed)
+    """
+    queue_mgr = await get_global_queue_manager(cookie_manager)
+    
+    # Check if request is still in queue or active
+    is_active = request_id in queue_mgr.active_requests
+    
+    # Check if result is stored
+    result_data = queue_mgr.get_result(request_id)
+    
+    if result_data:
+        response = {
+            "status": result_data['status'],
+            "request_id": request_id,
+            "result": result_data.get('result'),
+            "error": result_data.get('error'),
+            "timestamp": result_data.get('timestamp')
+        }
+        
+        # Optionally delete after retrieval
+        if delete_after:
+            await queue_mgr.delete_result(request_id)
+            response["deleted"] = True
+        
+        return response
+    elif is_active:
+        return {
+            "status": "processing",
+            "request_id": request_id,
+            "message": "Request is currently being processed"
+        }
+    else:
+        # Check if it's in any queue
+        for priority, queue in queue_mgr.queues.items():
+            if not queue.empty():
+                return {
+                    "status": "pending",
+                    "request_id": request_id,
+                    "message": "Request is queued, waiting to be processed"
+                }
+        
+        return {
+            "status": "not_found",
+            "request_id": request_id,
+            "message": "Request not found - may have expired or never existed"
+        }
+
+@router.delete("/result/{request_id}")
+async def delete_request_result(
+    request_id: str,
+    cookie_manager: CookieManager = Depends(get_cookie_manager)
+):
+    """Delete a stored result"""
+    queue_mgr = await get_global_queue_manager(cookie_manager)
+    deleted = await queue_mgr.delete_result(request_id)
+    
+    return {
+        "status": "success" if deleted else "not_found",
+        "request_id": request_id,
+        "deleted": deleted
+    }
+
+@router.get("/results")
+async def list_all_results(
+    cookie_manager: CookieManager = Depends(get_cookie_manager)
+):
+    """List all stored results (for debugging)"""
+    queue_mgr = await get_global_queue_manager(cookie_manager)
+    
+    return {
+        "status": "success",
+        "count": len(queue_mgr.results),
+        "results": {
+            req_id: {
+                "status": data.get("status"),
+                "timestamp": data.get("timestamp"),
+                "has_result": data.get("result") is not None,
+                "has_error": data.get("error") is not None
+            }
+            for req_id, data in queue_mgr.results.items()
+        }
+    }
+
 @router.post("/stop")
 async def stop_queue_manager(cookie_manager: CookieManager = Depends(get_cookie_manager)):
     """Stop the queue manager"""
