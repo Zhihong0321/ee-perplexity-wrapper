@@ -238,6 +238,11 @@ class QueueManager:
     async def _process_request(self, request: QueueRequest):
         """Process a single request"""
         try:
+            # Update status to processing
+            if request.id in self.results:
+                self.results[request.id]['status'] = 'processing'
+                await self._save_results()
+            
             # Get available account (with retry logic)
             account_name = None
             max_wait_time = 60  # Maximum wait time for available account
@@ -386,6 +391,17 @@ class QueueManager:
             query_params=query_params,
             priority=priority
         )
+        
+        # Store request immediately with "queued" status so it can be tracked
+        self.results[request_id] = {
+            'status': 'queued',
+            'result': None,
+            'error': None,
+            'timestamp': datetime.now().isoformat(),
+            'priority': priority.name,
+            'account_name': account_name
+        }
+        await self._save_results()
         
         # Add to appropriate queue
         await self.queues[priority].put(request)

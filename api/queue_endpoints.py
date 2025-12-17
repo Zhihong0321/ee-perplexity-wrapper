@@ -196,49 +196,37 @@ async def get_request_result(
     Get the result of a completed request by request_id.
     
     Returns:
-    - status: "pending" if still processing, "completed" if done, "failed" if error
+    - status: "queued" | "processing" | "completed" | "failed" | "not_found"
     - result: The query result (if completed)
     - error: Error message (if failed)
     """
     queue_mgr = await get_global_queue_manager(cookie_manager)
     
-    # Check if request is still in queue or active
-    is_active = request_id in queue_mgr.active_requests
-    
-    # Check if result is stored
+    # Check if result is stored (all requests are now tracked from submission)
     result_data = queue_mgr.get_result(request_id)
     
     if result_data:
         response = {
             "status": result_data['status'],
             "request_id": request_id,
-            "result": result_data.get('result'),
-            "error": result_data.get('error'),
             "timestamp": result_data.get('timestamp')
         }
         
-        # Optionally delete after retrieval
-        if delete_after:
+        # Include result/error based on status
+        if result_data['status'] == 'completed':
+            response["result"] = result_data.get('result')
+        elif result_data['status'] == 'failed':
+            response["error"] = result_data.get('error')
+        elif result_data['status'] in ('queued', 'processing'):
+            response["message"] = f"Request is {result_data['status']}"
+        
+        # Optionally delete after retrieval (only for completed/failed)
+        if delete_after and result_data['status'] in ('completed', 'failed'):
             await queue_mgr.delete_result(request_id)
             response["deleted"] = True
         
         return response
-    elif is_active:
-        return {
-            "status": "processing",
-            "request_id": request_id,
-            "message": "Request is currently being processed"
-        }
     else:
-        # Check if it's in any queue
-        for priority, queue in queue_mgr.queues.items():
-            if not queue.empty():
-                return {
-                    "status": "pending",
-                    "request_id": request_id,
-                    "message": "Request is queued, waiting to be processed"
-                }
-        
         return {
             "status": "not_found",
             "request_id": request_id,
