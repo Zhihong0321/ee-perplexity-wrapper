@@ -36,21 +36,16 @@
         </header>
 
         <div class="card mb-6">
-            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div class="flex flex-col sm:flex-row gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Account</label>
-                        <select id="accountSelect" class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="">Select Account...</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Search</label>
-                        <input type="text" id="searchInput" placeholder="Search chats..." 
-                            class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Select Account</label>
+                <div id="accountButtons" class="flex flex-wrap gap-2">
+                    <div class="text-gray-500">Loading accounts...</div>
                 </div>
-                <button id="loadChatsBtn" class="btn-primary">Load Chats</button>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                <input type="text" id="searchInput" placeholder="Search chats..." 
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
             </div>
         </div>
 
@@ -76,8 +71,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             loadAccounts();
             
-            // Event listeners
-            document.getElementById('loadChatsBtn').addEventListener('click', loadChats);
+            // Event listener for search
             document.getElementById('searchInput').addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') loadChats();
             });
@@ -87,31 +81,50 @@
             try {
                 const response = await fetch('/api/account/list');
                 const result = await response.json();
-                console.log('Accounts API result:', result); // Debug line
                 
-                const select = document.getElementById('accountSelect');
-                select.innerHTML = '<option value="">Select Account...</option>';
+                const container = document.getElementById('accountButtons');
+                container.innerHTML = '';
                 
-                if (result.status === 'success' && result.data) {
-                    Object.keys(result.data).forEach(accountName => {
-                        const option = document.createElement('option');
-                        option.value = accountName;
-                        option.textContent = accountName;
-                        select.appendChild(option);
+                if (result.status === 'success' && result.accounts) {
+                    const accountNames = Object.keys(result.accounts);
+                    if (accountNames.length === 0) {
+                        container.innerHTML = '<div class="text-gray-500">No accounts found. Add accounts in the dashboard.</div>';
+                        return;
+                    }
+                    
+                    accountNames.forEach(accountName => {
+                        const button = document.createElement('button');
+                        button.className = 'px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-blue-600 hover:text-white transition-colors';
+                        button.textContent = accountName;
+                        button.dataset.account = accountName;
+                        button.onclick = () => selectAccount(accountName, button);
+                        container.appendChild(button);
                     });
+                } else {
+                    container.innerHTML = '<div class="text-red-500">Failed to load accounts</div>';
                 }
             } catch (error) {
-                showStatus('Failed to load accounts', 'error');
+                document.getElementById('accountButtons').innerHTML = '<div class="text-red-500">Error: ' + error.message + '</div>';
             }
+        }
+        
+        function selectAccount(accountName, clickedButton) {
+            // Update visual state
+            document.querySelectorAll('#accountButtons button').forEach(btn => {
+                btn.className = 'px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-blue-600 hover:text-white transition-colors';
+            });
+            clickedButton.className = 'px-4 py-2 bg-blue-600 text-white rounded-md';
+            
+            // Set current account and load chats
+            currentAccount = accountName;
+            loadChats();
         }
 
         async function loadChats() {
-            const accountSelect = document.getElementById('accountSelect');
             const searchTerm = document.getElementById('searchInput').value;
             
-            currentAccount = accountSelect.value;
             if (!currentAccount) {
-                showStatus('Please select an account', 'error');
+                showStatus('Please select an account first', 'error');
                 return;
             }
 
