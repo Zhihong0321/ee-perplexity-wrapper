@@ -52,7 +52,7 @@ async def extract_mykad_endpoint(
 
     # Check file type (accept images and PDFs)
     allowed_extensions = ('.jpg', '.jpeg', '.png', '.pdf')
-    if not file.filename.lower().endswith(allowed_extensions):
+    if not file.filename or not file.filename.lower().endswith(allowed_extensions):
         raise HTTPException(
             status_code=400,
             detail="Invalid file format. Only images (JPG, PNG) and PDF files are supported."
@@ -61,8 +61,12 @@ async def extract_mykad_endpoint(
     # Read file content
     file_content = await file.read()
 
+    # Sanitize filename to prevent regex errors in mimetypes.guess_type()
+    import re
+    safe_filename = re.sub(r'[^\w\-. ]', '_', file.filename)
+
     # Extract MYKAD/namecard information
-    result = await extract_mykad_info(file.filename, file_content, account_name, model)
+    result = await extract_mykad_info(safe_filename, file_content, account_name, model)
 
     if not result['success']:
         # Extraction failed

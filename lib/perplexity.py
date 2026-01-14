@@ -147,7 +147,10 @@ class Client:
         # Upload files and prepare the query payload
         uploaded_files = []
         for filename, file in files.items():
-            file_type = mimetypes.guess_type(filename)[0]
+            try:
+                file_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+            except (re.error, Exception):
+                file_type = "application/octet-stream"
             file_upload_info_resp = await self.session.post(
                 "https://www.perplexity.ai/rest/uploads/create_upload_url?version=2.18&source=default",
                 json={

@@ -641,11 +641,21 @@ async def query_with_file(
         if not model:
             model = "gemini-3-flash"
 
+        if not file.filename:
+            raise HTTPException(
+                status_code=400,
+                detail="Filename is required"
+            )
+
         # Read file content
         file_content = await file.read()
 
+        # Sanitize filename to prevent regex errors in mimetypes.guess_type()
+        import re
+        safe_filename = re.sub(r'[^\w\-. ]', '_', file.filename)
+
         # Prepare files dictionary for Perplexity client
-        files_dict = {file.filename: file_content}
+        files_dict = {safe_filename: file_content}
 
         # Get the specific account client
         client = await get_perplexity_client(account_name)

@@ -52,7 +52,7 @@ async def extract_tnb_bill_endpoint(
     """
 
     # Check file type
-    if not file.filename.lower().endswith('.pdf'):
+    if not file.filename or not file.filename.lower().endswith('.pdf'):
         raise HTTPException(
             status_code=400,
             detail="Invalid file format. Only PDF files are supported."
@@ -61,8 +61,12 @@ async def extract_tnb_bill_endpoint(
     # Read file content
     file_content = await file.read()
 
+    # Sanitize filename to prevent regex errors in mimetypes.guess_type()
+    import re
+    safe_filename = re.sub(r'[^\w\-. ]', '_', file.filename)
+
     # Extract TNB bill information
-    result = await extract_tnb_bill(file.filename, file_content, account_name, model)
+    result = await extract_tnb_bill(safe_filename, file_content, account_name, model)
 
     if not result['success']:
         # Extraction failed
