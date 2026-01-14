@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query, HTTPException, Form
+from fastapi import FastAPI, Query, HTTPException, Form, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -610,6 +610,55 @@ async def get_collection_threads(
     except Exception as e:
         return handle_api_error(e, account_name)
 
+
+@app.post("/api/query_with_file")
+async def query_with_file(
+    account_name: str = Form(..., description="Account name to use"),
+    query: str = Form(..., description="Query to ask about the uploaded file"),
+    file: UploadFile = File(..., description="PDF or other file to analyze"),
+    model: Optional[str] = Form(None, description="Model to use (default: gemini-3-flash for files)"),
+    mode: str = Form("auto", description="Search mode"),
+):
+    """Query Perplexity AI with a file upload."""
+    try:
+        # Default to gemini-3-flash for file uploads if no model specified
+        if not model:
+            model = "gemini-3-flash"
+
+        # Read file content
+        file_content = await file.read()
+
+        # Prepare files dictionary for Perplexity client
+        files_dict = {file.filename: file_content}
+
+        # Get the specific account client
+        client = await get_perplexity_client(account_name)
+
+        # Execute search with file
+        result = await client.search(
+            query,
+            mode=mode,
+            model=model,
+            sources=["web"],
+            files=files_dict,
+            stream=False,
+            language="en-US",
+            follow_up=None,
+            incognito=False,
+            collection_uuid=None,
+            frontend_uuid=None,
+            frontend_context_uuid=None,
+        )
+
+        file_name = f"API-FILE-{account_name}-{datetime.now().strftime('%Y%m%d%H%M%S')}-{file.filename}"
+        save_resp(result, file_name)
+
+        # Mark account as used
+        await cookie_manager.mark_account_used(account_name)
+
+        return create_api_response(result, account_name)
+    except Exception as e:
+        return handle_api_error(e, account_name)
 
 
 # Account Management Endpoints
