@@ -87,7 +87,9 @@ async def extract_tnb_bill_endpoint(
                 'customer_name': result.get('customer_name'),
                 'address': result.get('address'),
                 'tnb_account': result.get('tnb_account'),
-                'bill_date': result.get('bill_date')
+                'bill_date': result.get('bill_date'),
+                'state': result.get('state'),
+                'post_code': result.get('post_code')
             }
         }
     )
@@ -103,16 +105,18 @@ async def get_extraction_results(
     """
     TNB Extraction Results Endpoint
 
-    Returns extraction results (accessed via redirect URL).
+    Returns extraction results (accessed via query parameters).
 
     **Query Parameters:**
       - customer_name: Extracted customer name
       - address: Extracted address
       - tnb-account: Extracted TNB account number
       - bill-date: Extracted bill date
+      - state: Extracted state/region
+      - post-code: Extracted postal code
 
     **Example Request:**
-      curl "http://localhost:5000/api/extract-tnb?customer_name=Mak%20Kian%20Keong&address=...&tnb-account=220012905808&bill-date=25.06.2025"
+      curl "http://localhost:8000/api/extract-tnb?customer_name=Mak%20Kian%20Keong&address=...&tnb-account=220012905808&bill-date=25.06.2025&state=Selangor&post-code=42500"
     """
 
     # Check if this is a result redirect (has query parameters)
@@ -124,7 +128,9 @@ async def get_extraction_results(
                 'customer_name': customer_name,
                 'address': address,
                 'tnb_account': tnb_account,
-                'bill_date': bill_date
+                'bill_date': bill_date,
+                'state': None,
+                'post_code': None
             }
         }
 

@@ -81,7 +81,9 @@ Extract TNB electricity bill information from PDF files.
     "customer_name": "Mak Kian Keong",
     "address": "3, Jalan Flora 3F/5, Bandar Rimbayu, 42500 Telok Panglima Garang, Selangor",
     "tnb_account": "220012905808",
-    "bill_date": "25.06.2025"
+    "bill_date": "25.06.2025",
+    "state": "Selangor",
+    "post_code": "42500"
   }
 }
 ```

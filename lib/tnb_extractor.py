@@ -44,6 +44,8 @@ async def extract_tnb_bill(
             "tnb_account": str,
             "address": str,
             "bill_date": str,
+            "state": str,
+            "post_code": str,
             "success": bool,
             "response_time": float
         }
@@ -56,6 +58,8 @@ async def extract_tnb_bill(
             "tnb_account": "220012905808",
             "address": "3, Jalan Flora 3F/5, Bandar Rimbayu, 42500 Telok Panglima Garang, Selangor",
             "bill_date": "25.06.2025",
+            "state": "Selangor",
+            "post_code": "42500",
             "success": True,
             "response_time": 7.76
         }
@@ -76,6 +80,8 @@ async def extract_tnb_bill(
             "tnb_account": None,
             "address": None,
             "bill_date": None,
+            "state": None,
+            "post_code": None,
             "response_time": 0
         }
 
@@ -88,15 +94,17 @@ async def extract_tnb_bill(
     thread_uuid = str(uuid4())
 
     # Strict prompt for JSON-only output - no markdown, no explanations
-    query = """Extract only these 4 fields from the TNB electricity bill. Return ONLY raw JSON with no markdown formatting, no code blocks, no explanations:
+    query = """Extract only these 6 fields from TNB electricity bill. Return ONLY raw JSON with no markdown formatting, no code blocks, no explanations:
 
-{"customer_name":"","tnb_account":"","address":"","bill_date":""}
+{"customer_name":"","tnb_account":"","address":"","bill_date":"","state":"","post_code":""}
 
 Rules:
 - Return ONLY the JSON object above with values filled in
 - No markdown, no code blocks (```json), no introductory or concluding text
 - If a field is not found, return empty string "" for that field
-- bill_date format: DD.MM.YYYY"""
+- bill_date format: DD.MM.YYYY
+- state: Extract the state/region from the address (e.g., "Selangor")
+- post_code: Extract the postal/ZIP code from the address (e.g., "42500")"""
 
     files = {file_path: file_content}
 
@@ -136,7 +144,9 @@ Rules:
             "customer_name": None,
             "tnb_account": None,
             "address": None,
-            "bill_date": None
+            "bill_date": None,
+            "state": None,
+            "post_code": None
         }
 
         if raw_answer:
@@ -160,6 +170,8 @@ Rules:
                     extracted_data["tnb_account"] = parsed.get("tnb_account") or None
                     extracted_data["address"] = parsed.get("address") or None
                     extracted_data["bill_date"] = parsed.get("bill_date") or None
+                    extracted_data["state"] = parsed.get("state") or None
+                    extracted_data["post_code"] = parsed.get("post_code") or None
 
                     # Clean up values - remove quotes if they're wrapped around
                     for key in extracted_data:
@@ -177,6 +189,8 @@ Rules:
             "tnb_account": extracted_data["tnb_account"],
             "address": extracted_data["address"],
             "bill_date": extracted_data["bill_date"],
+            "state": extracted_data["state"],
+            "post_code": extracted_data["post_code"],
             "response_time": response_time
         }
 
@@ -190,6 +204,8 @@ Rules:
             "tnb_account": None,
             "address": None,
             "bill_date": None,
+            "state": None,
+            "post_code": None,
             "response_time": time.time() - start_time if 'start_time' in locals() else 0
         }
 

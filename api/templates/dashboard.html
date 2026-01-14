@@ -70,6 +70,8 @@
                             <li>tnb_account</li>
                             <li>address</li>
                             <li>bill_date</li>
+                            <li>state</li>
+                            <li>post_code</li>
                         </ul>
                     </div>
                 </div>
@@ -84,7 +86,7 @@ curl -X POST "http://localhost:8000/api/extract-tnb" \<br>
   -F "account_name=test_user"
                         </code>
                     </div>
-                    <p class="text-xs text-gray-600 mt-2">Response: JSON with 4 extracted fields (~200 bytes)</p>
+                    <p class="text-xs text-gray-600 mt-2">Response: JSON with 6 extracted fields (~250 bytes)</p>
                 </div>
 
                 <!-- Python Example -->
@@ -114,7 +116,9 @@ print(result['data'])</code></pre>
     "customer_name": "Mak Kian Keong",
     "address": "3, Jalan Flora 3F/5, Bandar Rimbayu",
     "tnb_account": "220012905808",
-    "bill_date": "25.06.2025"
+    "bill_date": "25.06.2025",
+    "state": "Selangor",
+    "post_code": "42500"
   }
 }</code></pre>
                     </div>
