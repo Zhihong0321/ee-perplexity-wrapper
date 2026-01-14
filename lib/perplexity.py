@@ -114,6 +114,7 @@ class Client:
                     "gpt-4o",
                     "claude 3.7 sonnet",
                     "gemini 2.0 flash",
+                    "gemini-3-flash",
                     "grok-2",
                     "gpt-5.1",
                     "gemini-3-pro",
@@ -158,6 +159,10 @@ class Client:
                 },
             )
             file_upload_info = file_upload_info_resp.json()
+
+            # Check if rate limited
+            if file_upload_info.get("rate_limited"):
+                raise Exception(f"File upload rate limit reached for account. Response: {file_upload_info}")
 
             # Upload the file to the server
             mp = CurlMime()
