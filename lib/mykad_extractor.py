@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-TNB Bill Extractor - Fast extraction with strict JSON output
+MYKAD & Namecard Extractor - Fast extraction with strict JSON output
 
-This module provides a high-performance function to extract specific fields
-from TNB electricity bills using gemini-3-flash model.
+This module provides a high-performance function to extract personal information
+from MYKAD cards or customer namecards using gemini-3-flash model.
 """
 
 import asyncio
@@ -21,41 +21,41 @@ from lib.cookie_manager import CookieManager
 from api.config import get_storage_file_path
 
 
-async def extract_tnb_bill(
+async def extract_mykad_info(
     file_path: str,
     file_content: bytes,
     account_name: str = "yamal",
     model: str = "gemini-3-flash"
 ) -> Dict[str, any]:
     """
-    Extract TNB bill information with strict JSON output.
+    Extract MYKAD or namecard information with strict JSON output.
 
     Args:
-        file_path: Path to the PDF file
-        file_content: Binary content of the PDF file
+        file_path: Path to the file (image or PDF)
+        file_content: Binary content of the file
         account_name: Account name to use from cookies.json
         model: Model to use (default: gemini-3-flash)
 
     Returns:
         Dictionary with extracted fields:
         {
-            "customer_name": str,
-            "tnb_account": str,
+            "name": str,
+            "mykad_id": str,
             "address": str,
-            "bill_date": str,
+            "contact_number": str,
             "success": bool,
             "response_time": float,
             "raw_answer": str
         }
 
     Example:
-        >>> result = await extract_tnb_bill("TNB1.pdf", pdf_bytes)
+        >>> result = await extract_mykad_info("mykad.jpg", image_bytes)
         >>> print(result)
         {
-            "customer_name": "Mak Kian Keong",
-            "tnb_account": "220012905808",
-            "address": "3, Jalan Flora 3F/5, Bandar Rimbayu, 42500 Telok Panglima Garang, Selangor",
-            "bill_date": "25.06.2025",
+            "name": "Ahmad bin Ali",
+            "mykad_id": "123456-01-1234",
+            "address": "No. 123, Jalan Merdeka, 50000 Kuala Lumpur",
+            "contact_number": "012-3456789",
             "success": True,
             "response_time": 7.76,
             "raw_answer": "..."
@@ -73,10 +73,10 @@ async def extract_tnb_bill(
         return {
             "success": False,
             "error": f"Account not found: {e}",
-            "customer_name": None,
-            "tnb_account": None,
+            "name": None,
+            "mykad_id": None,
             "address": None,
-            "bill_date": None,
+            "contact_number": None,
             "response_time": 0,
             "raw_answer": None
         }
@@ -90,12 +90,12 @@ async def extract_tnb_bill(
     thread_uuid = str(uuid4())
 
     # Optimized prompt for fast extraction with STRICT JSON output
-    query = """Extract these fields from TNB electricity bill. Return ONLY valid JSON, no other text, no markdown formatting:
+    query = """Extract these fields from MYKAD card or namecard. Return ONLY valid JSON, no other text, no markdown formatting:
 {
-  "customer_name": "Customer Name",
-  "tnb_account": "Account Number",
+  "name": "Full Name",
+  "mykad_id": "MYKAD Number (format: XXXXXX-XX-XXXX)",
   "address": "Complete Address",
-  "bill_date": "Bill Date (DD.MM.YYYY)"
+  "contact_number": "Phone Number"
 }"""
 
     files = {file_path: file_content}
@@ -148,10 +148,10 @@ async def extract_tnb_bill(
 
                 extraction_result = {
                     "success": True,
-                    "customer_name": extracted_data.get("customer_name"),
-                    "tnb_account": extracted_data.get("tnb_account"),
+                    "name": extracted_data.get("name"),
+                    "mykad_id": extracted_data.get("mykad_id"),
                     "address": extracted_data.get("address"),
-                    "bill_date": extracted_data.get("bill_date"),
+                    "contact_number": extracted_data.get("contact_number"),
                     "response_time": response_time,
                     "raw_answer": raw_answer
                 }
@@ -163,29 +163,29 @@ async def extract_tnb_bill(
         # Fallback: Try regex to extract values from markdown answer
         import re
 
-        # Extract customer name
-        customer_name_match = re.search(r'(?:Customer Name|customer_name)[:":\s*"([^"]+)', raw_answer, re.IGNORECASE)
-        customer_name = customer_name_match.group(1) if customer_name_match else None
+        # Extract name
+        name_match = re.search(r'(?:Name|name)[:":\s*"([^"]+)', raw_answer, re.IGNORECASE)
+        name = name_match.group(1) if name_match else None
 
-        # Extract TNB account
-        account_match = re.search(r'(?:TNB Account|tnb_account|Account)[:":\s*"?([^"\n]+)', raw_answer, re.IGNORECASE)
-        tnb_account = account_match.group(1) if account_match else None
+        # Extract MYKAD ID
+        mykad_match = re.search(r'(?:MYKAD|mykad_id|ID)[:":\s*"?([\d-]+)', raw_answer, re.IGNORECASE)
+        mykad_id = mykad_match.group(1) if mykad_match else None
 
         # Extract address
         address_match = re.search(r'(?:Address|address)[:":\s*"([^"]+)', raw_answer, re.IGNORECASE)
         address = address_match.group(1) if address_match else None
 
-        # Extract bill date
-        date_match = re.search(r'(?:Bill Date|bill_date)[:":\s*"([^"]+)', raw_answer, re.IGNORECASE)
-        bill_date = date_match.group(1) if date_match else None
+        # Extract contact number
+        contact_match = re.search(r'(?:Contact|contact_number|Phone|phone)[:":\s*"?([^\s"]+)', raw_answer, re.IGNORECASE)
+        contact_number = contact_match.group(1) if contact_match else None
 
         if not extraction_result:
             extraction_result = {
-                "success": bool(customer_name or tnb_account or address),
-                "customer_name": customer_name,
-                "tnb_account": tnb_account,
+                "success": bool(name or mykad_id or address or contact_number),
+                "name": name,
+                "mykad_id": mykad_id,
                 "address": address,
-                "bill_date": bill_date,
+                "contact_number": contact_number,
                 "response_time": response_time,
                 "raw_answer": raw_answer
             }
@@ -196,10 +196,10 @@ async def extract_tnb_bill(
         return {
             "success": False,
             "error": str(e),
-            "customer_name": None,
-            "tnb_account": None,
+            "name": None,
+            "mykad_id": None,
             "address": None,
-            "bill_date": None,
+            "contact_number": None,
             "response_time": time.time() - start_time if 'start_time' in locals() else 0,
             "raw_answer": None
         }
@@ -216,13 +216,13 @@ async def extract_tnb_bill(
                 pass
 
 
-async def batch_extract_tnb_bills(
+async def batch_extract_mykad_info(
     files: list[tuple[str, bytes]],
     account_name: str = "yamal",
     model: str = "gemini-3-flash"
 ) -> list[Dict[str, any]]:
     """
-    Extract information from multiple TNB bills in batch.
+    Extract information from multiple MYKAD/namecard files in batch.
 
     Args:
         files: List of (file_path, file_content) tuples
@@ -235,7 +235,7 @@ async def batch_extract_tnb_bills(
     results = []
 
     for file_path, file_content in files:
-        result = await extract_tnb_bill(
+        result = await extract_mykad_info(
             file_path,
             file_content,
             account_name=account_name,
@@ -249,34 +249,36 @@ async def batch_extract_tnb_bills(
 
 # Example usage and testing
 async def main():
-    """Test the TNB bill extractor"""
+    """Test the MYKAD extractor"""
 
     print("="*80)
-    print("🧪 TNB BILL EXTRACTOR TEST")
+    print("🧪 MYKAD & NAMECARD EXTRACTOR TEST")
     print("="*80)
 
-    # Test with TNB1.pdf
-    with open("TNB1.pdf", "rb") as f:
-        pdf_content = f.read()
+    # Test with a sample file
+    test_file = "test_mykad.jpg"
+    if os.path.exists(test_file):
+        with open(test_file, "rb") as f:
+            file_content = f.read()
 
-    result = await extract_tnb_bill("TNB1.pdf", pdf_content)
+        result = await extract_mykad_info(test_file, file_content)
 
-    print(f"\n✅ Extraction Status: {'Success' if result['success'] else 'Failed'}")
-    print(f"⏱️  Response Time: {result['response_time']:.2f} seconds")
-    print(f"\n📋 Extracted Data:")
-    print("-"*80)
-    print(f"Customer Name: {result.get('customer_name', 'N/A')}")
-    print(f"TNB Account:    {result.get('tnb_account', 'N/A')}")
-    print(f"Address:        {result.get('address', 'N/A')}")
-    print(f"Bill Date:      {result.get('bill_date', 'N/A')}")
-    print("-"*80)
-
-    if result.get('raw_answer'):
-        print(f"\n📄 Raw Answer (first 500 chars):")
+        print(f"\n✅ Extraction Status: {'Success' if result['success'] else 'Failed'}")
+        print(f"⏱️  Response Time: {result['response_time']:.2f} seconds")
+        print(f"\n📋 Extracted Data:")
         print("-"*80)
-        print(result['raw_answer'][:500])
-        if len(result['raw_answer']) > 500:
-            print("\n... (truncated)")
+        print(f"Name:          {result.get('name', 'N/A')}")
+        print(f"MYKAD ID:      {result.get('mykad_id', 'N/A')}")
+        print(f"Address:       {result.get('address', 'N/A')}")
+        print(f"Contact:       {result.get('contact_number', 'N/A')}")
+        print("-"*80)
+
+        if result.get('raw_answer'):
+            print(f"\n📄 Raw Answer (first 500 chars):")
+            print("-"*80)
+            print(result['raw_answer'][:500])
+            if len(result['raw_answer']) > 500:
+                print("\n... (truncated)")
 
     print("\n" + "="*80)
 

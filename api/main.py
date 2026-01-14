@@ -87,6 +87,14 @@ try:
 except Exception as e:
     print(f"[WARN] Failed to load TNB extractor endpoints: {e}")
 
+# Import and include MYKAD extractor router
+try:
+    from api.mykad_extractor_endpoints import router as mykad_router
+    app.include_router(mykad_router)
+    print("[OK] MYKAD & Namecard Extractor endpoints loaded")
+except Exception as e:
+    print(f"[WARN] Failed to load MYKAD extractor endpoints: {e}")
+
 # Global queue manager
 async_queue_manager = None
 
