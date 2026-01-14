@@ -213,7 +213,7 @@ class Client:
                     "gpt-4o": "gpt4o",
                     "claude 3.7 sonnet": "claude2",
                     "gemini 2.0 flash": "gemini2flash",
-                    "gemini-3-flash": "gemini30flash",
+                    "gemini-3-flash": "gemini-3-flash",
                     "grok-2": "grok",
                     # Perplexity API now expects the thinking variant name
                     "gpt-5.1": "gpt51_thinking",
