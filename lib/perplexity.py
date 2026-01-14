@@ -213,7 +213,7 @@ class Client:
                     "gpt-4o": "gpt4o",
                     "claude 3.7 sonnet": "claude2",
                     "gemini 2.0 flash": "gemini2flash",
-                    "gemini-3-flash": "gemini-3-flash",
+                    "gemini-3-flash": "gemini30flash",
                     "grok-2": "grok",
                     # Perplexity API now expects the thinking variant name
                     "gpt-5.1": "gpt51_thinking",
@@ -275,7 +275,13 @@ class Client:
             if content.startswith("event: message\r\n"):
                 content_json = json.loads(content[len("event: message\r\ndata: ") :])
                 if "text" in content_json:
-                    content_json["text"] = json.loads(content_json["text"])
+                    # Try to parse text as JSON (for most models)
+                    # If it fails (e.g., gemini-3-flash returns plain text), keep as is
+                    try:
+                        content_json["text"] = json.loads(content_json["text"])
+                    except (json.JSONDecodeError, TypeError):
+                        # Text is not JSON, keep as plain string
+                        pass
 
                 chunks.append(content_json)
 
