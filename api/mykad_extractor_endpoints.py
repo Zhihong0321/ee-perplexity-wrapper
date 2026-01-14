@@ -74,8 +74,7 @@ async def extract_mykad_endpoint(
             status_code=500,
             content={
                 'status': 'error',
-                'error': result.get('error', 'Extraction failed'),
-                'response_time': result.get('response_time', 0)
+                'error': result.get('error', 'Extraction failed')
             }
         )
 
@@ -86,8 +85,7 @@ async def extract_mykad_endpoint(
             'name': result.get('name'),
             'mykad_id': result.get('mykad_id'),
             'address': result.get('address'),
-            'contact_number': result.get('contact_number'),
-            'response_time': result.get('response_time')
+            'contact_number': result.get('contact_number')
         }
     }
 

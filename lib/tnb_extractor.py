@@ -12,6 +12,7 @@ import json
 from typing import Dict, Optional
 import sys
 import os
+import re
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -44,8 +45,7 @@ async def extract_tnb_bill(
             "address": str,
             "bill_date": str,
             "success": bool,
-            "response_time": float,
-            "raw_answer": str
+            "response_time": float
         }
 
     Example:
@@ -57,8 +57,7 @@ async def extract_tnb_bill(
             "address": "3, Jalan Flora 3F/5, Bandar Rimbayu, 42500 Telok Panglima Garang, Selangor",
             "bill_date": "25.06.2025",
             "success": True,
-            "response_time": 7.76,
-            "raw_answer": "..."
+            "response_time": 7.76
         }
     """
 
@@ -77,8 +76,7 @@ async def extract_tnb_bill(
             "tnb_account": None,
             "address": None,
             "bill_date": None,
-            "response_time": 0,
-            "raw_answer": None
+            "response_time": 0
         }
 
     # Initialize client
@@ -89,14 +87,16 @@ async def extract_tnb_bill(
     from uuid import uuid4
     thread_uuid = str(uuid4())
 
-    # Optimized prompt for fast extraction with STRICT JSON output
-    query = """Extract these fields from TNB electricity bill. Return ONLY valid JSON, no other text, no markdown formatting:
-{
-  "customer_name": "Customer Name",
-  "tnb_account": "Account Number",
-  "address": "Complete Address",
-  "bill_date": "Bill Date (DD.MM.YYYY)"
-}"""
+    # Strict prompt for JSON-only output - no markdown, no explanations
+    query = """Extract only these 4 fields from the TNB electricity bill. Return ONLY raw JSON with no markdown formatting, no code blocks, no explanations:
+
+{"customer_name":"","tnb_account":"","address":"","bill_date":""}
+
+Rules:
+- Return ONLY the JSON object above with values filled in
+- No markdown, no code blocks (```json), no introductory or concluding text
+- If a field is not found, return empty string "" for that field
+- bill_date format: DD.MM.YYYY"""
 
     files = {file_path: file_content}
 
@@ -119,7 +119,7 @@ async def extract_tnb_bill(
         end_time = time.time()
         response_time = end_time - start_time
 
-        # Extract answer from blocks
+        # Extract answer from blocks - focus on ask_text block only
         blocks = result.get("blocks", [])
         raw_answer = None
 
@@ -131,64 +131,54 @@ async def extract_tnb_bill(
                     raw_answer = markdown_block.get("answer")
                     break
 
-        # Parse JSON from answer
+        # Parse JSON from answer with strict validation
+        extracted_data = {
+            "customer_name": None,
+            "tnb_account": None,
+            "address": None,
+            "bill_date": None
+        }
+
         if raw_answer:
-            # Try to extract JSON from the response
-            # The model might wrap it in markdown or text
             json_str = raw_answer.strip()
 
-            # Look for JSON object in the response
+            # Remove markdown code blocks if present
+            json_str = re.sub(r'```json\s*', '', json_str)
+            json_str = re.sub(r'```\s*$', '', json_str)
+
+            # Extract JSON object from response
             if "{" in json_str and "}" in json_str:
                 start_idx = json_str.find("{")
                 end_idx = json_str.rfind("}") + 1
                 json_str = json_str[start_idx:end_idx]
 
-            try:
-                extracted_data = json.loads(json_str)
+                try:
+                    parsed = json.loads(json_str)
 
-                extraction_result = {
-                    "success": True,
-                    "customer_name": extracted_data.get("customer_name"),
-                    "tnb_account": extracted_data.get("tnb_account"),
-                    "address": extracted_data.get("address"),
-                    "bill_date": extracted_data.get("bill_date"),
-                    "response_time": response_time,
-                    "raw_answer": raw_answer
-                }
+                    # Validate and extract required fields
+                    extracted_data["customer_name"] = parsed.get("customer_name") or None
+                    extracted_data["tnb_account"] = parsed.get("tnb_account") or None
+                    extracted_data["address"] = parsed.get("address") or None
+                    extracted_data["bill_date"] = parsed.get("bill_date") or None
 
-            except json.JSONDecodeError:
-                # JSON parsing failed, try to extract manually
-                pass
+                    # Clean up values - remove quotes if they're wrapped around
+                    for key in extracted_data:
+                        if extracted_data[key] and isinstance(extracted_data[key], str):
+                            extracted_data[key] = extracted_data[key].strip()
 
-        # Fallback: Try regex to extract values from markdown answer
-        import re
+                except json.JSONDecodeError:
+                    # JSON parsing failed - data remains None
+                    pass
 
-        # Extract customer name
-        customer_name_match = re.search(r'(?:Customer Name|customer_name)[:":\s*"([^"]+)', raw_answer, re.IGNORECASE)
-        customer_name = customer_name_match.group(1) if customer_name_match else None
-
-        # Extract TNB account
-        account_match = re.search(r'(?:TNB Account|tnb_account|Account)[:":\s*"?([^"\n]+)', raw_answer, re.IGNORECASE)
-        tnb_account = account_match.group(1) if account_match else None
-
-        # Extract address
-        address_match = re.search(r'(?:Address|address)[:":\s*"([^"]+)', raw_answer, re.IGNORECASE)
-        address = address_match.group(1) if address_match else None
-
-        # Extract bill date
-        date_match = re.search(r'(?:Bill Date|bill_date)[:":\s*"([^"]+)', raw_answer, re.IGNORECASE)
-        bill_date = date_match.group(1) if date_match else None
-
-        if not extraction_result:
-            extraction_result = {
-                "success": bool(customer_name or tnb_account or address),
-                "customer_name": customer_name,
-                "tnb_account": tnb_account,
-                "address": address,
-                "bill_date": bill_date,
-                "response_time": response_time,
-                "raw_answer": raw_answer
-            }
+        # Build result - exclude raw_answer to reduce payload size
+        extraction_result = {
+            "success": any(extracted_data.values()),
+            "customer_name": extracted_data["customer_name"],
+            "tnb_account": extracted_data["tnb_account"],
+            "address": extracted_data["address"],
+            "bill_date": extracted_data["bill_date"],
+            "response_time": response_time
+        }
 
         return extraction_result
 
@@ -200,8 +190,7 @@ async def extract_tnb_bill(
             "tnb_account": None,
             "address": None,
             "bill_date": None,
-            "response_time": time.time() - start_time if 'start_time' in locals() else 0,
-            "raw_answer": None
+            "response_time": time.time() - start_time if 'start_time' in locals() else 0
         }
 
     finally:

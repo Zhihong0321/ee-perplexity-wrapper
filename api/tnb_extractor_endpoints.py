@@ -69,36 +69,27 @@ async def extract_tnb_bill_endpoint(
     result = await extract_tnb_bill(safe_filename, file_content, account_name, model)
 
     if not result['success']:
-        # Extraction failed
+        # Extraction failed - minimal error response
         return JSONResponse(
             status_code=500,
             content={
                 'status': 'error',
-                'error': result.get('error', 'Extraction failed'),
-                'response_time': result.get('response_time', 0)
+                'error': result.get('error', 'Extraction failed')
             }
         )
 
-    # Build redirect URL with query parameters
-    redirect_url = f"/api/extract-tnb?customer_name={result.get('customer_name', '')}&address={result.get('address', '')}&tnb-account={result.get('tnb_account', '')}&bill-date={result.get('bill_date', '')}"
-
-    # Return both redirect and JSON
-    response_content = {
-        'status': 'success',
-        'data': {
-            'customer_name': result.get('customer_name'),
-            'address': result.get('address'),
-            'tnb_account': result.get('tnb_account'),
-            'bill_date': result.get('bill_date'),
-            'response_time': result.get('response_time')
-        },
-        'redirect_url': redirect_url
-    }
-
+    # Return minimal JSON response
     return JSONResponse(
         status_code=200,
-        content=response_content,
-        headers={'Location': redirect_url}
+        content={
+            'status': 'success',
+            'data': {
+                'customer_name': result.get('customer_name'),
+                'address': result.get('address'),
+                'tnb_account': result.get('tnb_account'),
+                'bill_date': result.get('bill_date')
+            }
+        }
     )
 
 

@@ -61,6 +61,87 @@ python run_server.py
 
 ## 📖 API Usage
 
+### Document Extractor APIs
+
+#### TNB Bill Extractor
+Extract TNB electricity bill information from PDF files.
+
+**Endpoint**: `POST /api/extract-tnb`
+
+**Parameters**:
+*   `file`: PDF file (required)
+*   `account_name`: Account to use (optional, default: first available)
+*   `model`: Model to use (optional, default: gemini-3-flash)
+
+**Response**:
+```json
+{
+  "status": "success",
+  "data": {
+    "customer_name": "Mak Kian Keong",
+    "address": "3, Jalan Flora 3F/5, Bandar Rimbayu, 42500 Telok Panglima Garang, Selangor",
+    "tnb_account": "220012905808",
+    "bill_date": "25.06.2025"
+  }
+}
+```
+
+**Example**:
+```bash
+curl -X POST "http://localhost:8000/api/extract-tnb" \
+  -F "file=@TNB1.pdf" \
+  -F "account_name=my_account"
+```
+
+**Python Example**:
+```python
+import requests
+
+with open('TNB1.pdf', 'rb') as f:
+    response = requests.post(
+        'http://localhost:8000/api/extract-tnb',
+        files={'file': f},
+        data={'account_name': 'my_account'}
+    )
+
+result = response.json()
+print(result['data'])
+```
+
+#### MYKAD & Namecard Extractor
+Extract personal information from MYKAD cards or customer namecards.
+
+**Endpoint**: `POST /api/extract-mykad`
+
+**Parameters**:
+*   `file`: Image (JPG, JPEG, PNG) or PDF file (required)
+*   `account_name`: Account to use (optional, default: first available)
+*   `model`: Model to use (optional, default: gemini-3-flash)
+
+**Response**:
+```json
+{
+  "status": "success",
+  "data": {
+    "name": "John Doe",
+    "mykad_id": "123456-01-5678",
+    "address": "123 Street Name, City, Postal Code",
+    "contact_number": "+60 12-34567890"
+  }
+}
+```
+
+**Example**:
+```bash
+curl -X POST "http://localhost:8000/api/extract-mykad" \
+  -F "file=@mykad_front.jpg" \
+  -F "account_name=my_account"
+```
+
+**Health Check**: `GET /api/tnb-health` or `GET /api/mykad-health`
+
+---
+
 ### 1. Authentication (Adding Accounts)
 
 Extract cookies from a logged-in Perplexity session using a browser extension like [EditThisCookie](https://chrome.google.com/webstore/detail/editthiscookie/).
@@ -320,6 +401,7 @@ This is an **unofficial** API wrapper and is **not affiliated** with Perplexity 
 ## 🔗 Resources
 
 *   **API Documentation**: Access `/docs` when server is running
+*   **TNB Extractor**: See [TNB_FIX_SUMMARY.md](TNB_FIX_SUMMARY.md) for detailed fix information
 *   **Queue Features**: See [QUEUE_FEATURES.md](QUEUE_FEATURES.md)
 *   **Development Guide**: See [AGENTS.md](AGENTS.md)
 *   **Collections Support**: See [add-custom-space.md](add-custom-space.md)
