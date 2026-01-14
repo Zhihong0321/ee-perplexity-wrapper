@@ -79,6 +79,14 @@ try:
 except Exception as e:
     print(f"[WARN] Failed to load queue endpoints: {e}")
 
+# Import and include TNB extractor router
+try:
+    from api.tnb_extractor_endpoints import router as tnb_router
+    app.include_router(tnb_router)
+    print("[OK] TNB Bill Extractor endpoints loaded")
+except Exception as e:
+    print(f"[WARN] Failed to load TNB extractor endpoints: {e}")
+
 # Global queue manager
 async_queue_manager = None
 
