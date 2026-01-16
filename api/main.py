@@ -579,6 +579,23 @@ async def delete_thread(
         return handle_api_error(e, account_name)
 
 
+@app.delete("/api/threads/clear_all")
+async def clear_all_threads(account_name: str = Query(..., description="Account name to use")):
+    """Clear all threads for an account."""
+    try:
+        # Get the specific account client
+        client = await get_perplexity_client(account_name)
+        
+        result = await client.delete_all_threads()
+        
+        # Mark account as used
+        await cookie_manager.mark_account_used(account_name)
+        
+        return create_api_response(result, account_name)
+    except Exception as e:
+        return handle_api_error(e, account_name)
+
+
 @app.get("/api/collections")
 async def list_collections(
     account_name: str = Query(..., description="Account name to use"),
@@ -814,33 +831,127 @@ async def delete_account(account_name: str):
         return JSONResponse(content={"status": "error", "message": f"Failed to delete account: {str(e)}"}, status_code=500)
 
 
-@app.delete("/api/threads/{thread_uuid}")
-async def delete_thread(
-    thread_uuid: str,
+# Thread Management Endpoints
+@app.get("/api/threads/manage/list")
+async def list_threads_manage(
+    account_name: str = Query(..., description="Account name to use"),
+    limit: int = 50
+):
+    """List threads for management purposes."""
+    try:
+        client = await get_perplexity_client(account_name)
+        result = await client.get_threads(limit=limit, offset=0, search_term="")
+        await cookie_manager.mark_account_used(account_name)
+
+        threads = result.get('threads', [])
+        return JSONResponse(content={
+            "status": "success",
+            "account_name": account_name,
+            "total": len(threads),
+            "threads": threads
+        })
+    except Exception as e:
+        return JSONResponse(content={"status": "error", "error": str(e)}, status_code=500)
+
+
+@app.delete("/api/threads/manage/delete-old")
+async def delete_old_threads(
+    account_name: str = Query(..., description="Account name to use"),
+    keep_count: int = Query(10, description="Number of recent threads to keep")
+):
+    """Delete old threads, keeping the most recent N threads."""
+    try:
+        client = await get_perplexity_client(account_name)
+
+        result = await client.get_threads(limit=1000, offset=0)
+        threads = result.get('threads', [])
+
+        if len(threads) <= keep_count:
+            await cookie_manager.mark_account_used(account_name)
+            return JSONResponse(content={
+                "status": "success",
+                "message": f"Only {len(threads)} threads found. Keeping all.",
+                "deleted": 0,
+                "remaining": len(threads)
+            })
+
+        # Delete older threads (keep the most recent)
+        threads_to_delete = threads[keep_count:]
+
+        deleted = 0
+        failed = 0
+        failed_threads = []
+
+        for thread in threads_to_delete:
+            thread_uuid = thread.get('uuid') or thread.get('id')
+            if not thread_uuid:
+                continue
+
+            try:
+                await client.delete_thread(thread_uuid)
+                deleted += 1
+            except Exception as e:
+                failed += 1
+                failed_threads.append({
+                    "title": thread.get('title', 'Untitled'),
+                    "uuid": thread_uuid,
+                    "error": str(e)
+                })
+
+        await cookie_manager.mark_account_used(account_name)
+
+        return JSONResponse(content={
+            "status": "success",
+            "message": f"Deleted {deleted} old threads, kept {keep_count} most recent",
+            "deleted": deleted,
+            "failed": failed,
+            "remaining": keep_count,
+            "failed_threads": failed_threads[:10]  # Only return first 10 failures
+        })
+    except Exception as e:
+        return JSONResponse(content={"status": "error", "error": str(e)}, status_code=500)
+
+
+@app.get("/api/threads/manage/check-quota")
+async def check_upload_quota(
     account_name: str = Query(..., description="Account name to use")
 ):
-    """Delete a thread by UUID."""
+    """Check if the account can upload files (quota status)."""
     try:
-        # Get the specific account client
         client = await get_perplexity_client(account_name)
-        
-        result = await client.delete_thread(thread_uuid)
-        
-        # Mark account as used
+
+        # Try to get upload URL for a small test file
+        import mimetypes
+        test_file_info = await client.session.post(
+            "https://www.perplexity.ai/rest/uploads/create_upload_url?version=2.18&source=default",
+            json={
+                "content_type": "application/pdf",
+                "file_size": 1000,
+                "filename": "test.pdf",
+                "force_image": False,
+                "source": "default",
+            },
+        )
+
+        info = test_file_info.json()
         await cookie_manager.mark_account_used(account_name)
-        
-        return create_api_response(result, account_name)
+
+        if info.get("rate_limited"):
+            return JSONResponse(content={
+                "status": "rate_limited",
+                "message": "File upload rate limit reached",
+                "account_name": account_name,
+                "quota_available": False,
+                "details": info
+            })
+        else:
+            return JSONResponse(content={
+                "status": "success",
+                "message": "Upload quota available",
+                "account_name": account_name,
+                "quota_available": True,
+                "s3_bucket_url": info.get('s3_bucket_url'),
+                "file_uuid": info.get('file_uuid')
+            })
     except Exception as e:
-        return handle_api_error(e, account_name)
-
-
-@app.get("/chats")
-async def chat_list_page(request: Request):
-    """Chat list page with delete functionality."""
-    if templates is None:
-        return JSONResponse(content={
-            "message": "Template loading failed, using JSON response",
-            "html_available": False
-        })
-    
-    return templates.TemplateResponse("chat_list.html", {"request": request})
+        return JSONResponse(content={"status": "error", "error": str(e)}, status_code=500)

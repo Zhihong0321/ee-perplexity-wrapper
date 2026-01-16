@@ -322,6 +322,9 @@ print(f"Contact: {result['data']['contact_number']}")</code></pre>
                                     <button onclick="updateAccount('{{ account_id }}')" class="btn-secondary text-sm">
                                         Update
                                     </button>
+                                    <button onclick="clearAllChats('{{ account_id }}')" class="btn-secondary text-sm bg-orange-600 hover:bg-orange-700">
+                                        Clear Chats
+                                    </button>
                                     <button onclick="deleteAccount('{{ account_id }}')" class="btn-danger">
                                         Delete
                                     </button>
@@ -335,6 +338,84 @@ print(f"Contact: {result['data']['contact_number']}")</code></pre>
                         <p>No accounts configured yet. Add your first account above.</p>
                     </div>
                     {% endif %}
+                </div>
+            </div>
+
+            <!-- Thread Management -->
+            <div class="col-span-1 lg:col-span-2">
+                <div class="card bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200">
+                    <h2 class="text-xl font-semibold mb-4 text-amber-900">🗂️ Thread Management & File Upload Quota</h2>
+                    <p class="text-gray-700 mb-4">Manage your Perplexity threads to free up file upload quota. Files are kept for 30 days by default.</p>
+
+                    <!-- Account Selector -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Account</label>
+                        <select id="threadManageAccount" class="w-full md:w-1/2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500">
+                            {% for account_id, account in accounts.items() %}
+                            <option value="{{ account_id }}">{{ account.name }} ({{ account_id }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+                        <!-- Check Quota -->
+                        <div class="bg-white p-4 rounded border border-amber-100">
+                            <h3 class="font-semibold text-amber-900 mb-2">📊 Check Upload Quota</h3>
+                            <p class="text-sm text-gray-600 mb-3">Check if your account can upload files</p>
+                            <button onclick="checkUploadQuota()" class="btn-primary w-full text-sm bg-amber-600 hover:bg-amber-700">
+                                Check Quota
+                            </button>
+                            <div id="quotaStatus" class="mt-2 text-sm"></div>
+                        </div>
+
+                        <!-- Delete Old Threads -->
+                        <div class="bg-white p-4 rounded border border-amber-100">
+                            <h3 class="font-semibold text-amber-900 mb-2">🗑️ Delete Old Threads</h3>
+                            <p class="text-sm text-gray-600 mb-2">Keep recent threads, delete old ones</p>
+                            <div class="flex gap-2 mb-2">
+                                <input type="number" id="keepCount" value="10" min="1" max="100"
+                                    class="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                                    title="Number of recent threads to keep">
+                                <span class="text-xs text-gray-500 self-center">to keep</span>
+                            </div>
+                            <button onclick="deleteOldThreads()" class="btn-primary w-full text-sm bg-orange-600 hover:bg-orange-700">
+                                Delete Old Threads
+                            </button>
+                        </div>
+
+                        <!-- View All Threads -->
+                        <div class="bg-white p-4 rounded border border-amber-100">
+                            <h3 class="font-semibold text-amber-900 mb-2">📋 View All Threads</h3>
+                            <p class="text-sm text-gray-600 mb-3">List all threads for this account</p>
+                            <button onclick="viewAllThreads()" class="btn-primary w-full text-sm bg-amber-600 hover:bg-amber-700">
+                                List Threads
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Threads List (hidden by default) -->
+                    <div id="threadsListContainer" class="hidden bg-white p-4 rounded border border-amber-100 mb-4">
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 class="font-semibold text-amber-900">All Threads</h3>
+                            <button onclick="closeThreadsList()" class="text-gray-500 hover:text-gray-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div id="threadsListContent" class="max-h-96 overflow-y-auto">
+                            <div class="text-center py-4 text-gray-500">Loading...</div>
+                        </div>
+                    </div>
+
+                    <!-- CLI Usage Examples -->
+                    <div class="bg-gray-900 text-green-400 p-3 rounded text-sm font-mono overflow-x-auto">
+                        <div class="text-gray-400 text-xs mb-2"># Command-line usage:</div>
+                        <div>python manage_perplexity_threads.py check-quota [account]</div>
+                        <div>python manage_perplexity_threads.py list [account]</div>
+                        <div>python manage_perplexity_threads.py delete-old [account] [keep_count]</div>
+                        <div>python manage_perplexity_threads.py delete-all [account]</div>
+                    </div>
                 </div>
             </div>
 
@@ -724,6 +805,29 @@ GET /api/query_async?account_name=personal&q=News&collection_uuid=...
             }
         }
         
+        async function clearAllChats(accountName) {
+            if (!confirm(`Are you sure you want to delete ALL chat history for account "${accountName}"? This action cannot be undone.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/threads/clear_all?account_name=${encodeURIComponent(accountName)}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    const data = result.data;
+                    showToast(`Deleted ${data.deleted} threads successfully!`, 'success');
+                } else {
+                    showToast('Error: ' + result.message, 'error');
+                }
+            } catch (error) {
+                showToast('Network error: ' + error.message, 'error');
+            }
+        }
+        
         function validateCookies() {
             const cookieData = document.getElementById('cookieData').value;
             
@@ -899,9 +1003,129 @@ GET /api/query_async?account_name=personal&q=News&collection_uuid=...
             }
         }
         
+        // Thread Management Functions
+        async function checkUploadQuota() {
+            const accountName = document.getElementById('threadManageAccount').value;
+            const statusDiv = document.getElementById('quotaStatus');
+            statusDiv.innerHTML = '<span class="text-gray-500">Checking...</span>';
+
+            try {
+                const response = await fetch(`/api/threads/manage/check-quota?account_name=${encodeURIComponent(accountName)}`);
+                const data = await response.json();
+
+                if (data.quota_available) {
+                    statusDiv.innerHTML = `<span class="text-green-600 font-semibold">✓ Available</span>`;
+                    showToast('Upload quota is available!', 'success');
+                } else if (data.status === 'rate_limited') {
+                    statusDiv.innerHTML = `<span class="text-red-600 font-semibold">✗ Rate Limited</span>`;
+                    showToast('Upload rate limit reached! Delete old threads to free up quota.', 'error');
+                } else {
+                    statusDiv.innerHTML = `<span class="text-gray-500">${data.status}</span>`;
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<span class="text-red-600">Error</span>`;
+                showToast('Failed to check quota: ' + error.message, 'error');
+            }
+        }
+
+        async function deleteOldThreads() {
+            const accountName = document.getElementById('threadManageAccount').value;
+            const keepCount = document.getElementById('keepCount').value;
+
+            if (!confirm(`Delete old threads for "${accountName}", keeping the ${keepCount} most recent?\n\nThis action cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                showToast('Deleting old threads... This may take a while.', 'success');
+
+                const response = await fetch(
+                    `/api/threads/manage/delete-old?account_name=${encodeURIComponent(accountName)}&keep_count=${keepCount}`,
+                    { method: 'DELETE' }
+                );
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    showToast(data.message, 'success');
+                    if (data.deleted > 0) {
+                        // Refresh threads list if it's open
+                        const container = document.getElementById('threadsListContainer');
+                        if (!container.classList.contains('hidden')) {
+                            viewAllThreads();
+                        }
+                    }
+                } else {
+                    showToast('Error: ' + (data.error || data.message), 'error');
+                }
+            } catch (error) {
+                showToast('Failed to delete threads: ' + error.message, 'error');
+            }
+        }
+
+        async function viewAllThreads() {
+            const accountName = document.getElementById('threadManageAccount').value;
+            const container = document.getElementById('threadsListContainer');
+            const content = document.getElementById('threadsListContent');
+
+            container.classList.remove('hidden');
+            content.innerHTML = '<div class="text-center py-8">Loading threads...</div>';
+
+            try {
+                const response = await fetch(`/api/threads/manage/list?account_name=${encodeURIComponent(accountName)}&limit=100`);
+                const data = await response.json();
+
+                if (data.status !== 'success') {
+                    content.innerHTML = `<div class="text-red-600 p-4 text-center">Error: ${data.error}</div>`;
+                    return;
+                }
+
+                if (data.total === 0) {
+                    content.innerHTML = '<div class="text-center py-8 text-gray-500">No threads found.</div>';
+                    return;
+                }
+
+                let html = `
+                    <div class="text-sm text-gray-600 mb-3 pb-2 border-b">
+                        Total: <strong>${data.total}</strong> threads
+                    </div>
+                    <div class="space-y-2">
+                `;
+
+                data.threads.forEach((thread, index) => {
+                    const title = thread.title || 'Untitled';
+                    const created = thread.created_at || 'Unknown';
+                    const uuid = thread.uuid || thread.id || 'N/A';
+                    const isRecent = index < 10;
+
+                    html += `
+                        <div class="flex justify-between items-start p-3 rounded ${isRecent ? 'bg-green-50 border border-green-200' : 'bg-gray-50'} hover:shadow transition-shadow">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 mb-1">
+                                    ${isRecent ? '<span class="text-xs bg-green-600 text-white px-2 py-0.5 rounded">Recent</span>' : ''}
+                                    <div class="font-medium text-gray-900 truncate">${title}</div>
+                                </div>
+                                <div class="text-xs text-gray-500 font-mono truncate">${uuid}</div>
+                                <div class="text-xs text-gray-500">${created ? new Date(created).toLocaleString() : 'Unknown'}</div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += '</div>';
+                content.innerHTML = html;
+
+            } catch (error) {
+                content.innerHTML = `<div class="text-red-600 p-4 text-center">Network error: ${error.message}</div>`;
+            }
+        }
+
+        function closeThreadsList() {
+            document.getElementById('threadsListContainer').classList.add('hidden');
+        }
+
         // Auto-refresh queue status
         setInterval(refreshQueueStatus, 30000); // Refresh every 30 seconds
-        
+
         // Event listeners
         document.getElementById('addAccountForm').addEventListener('submit', addAccount);
         document.getElementById('updateAccountForm').addEventListener('submit', submitUpdateAccount);

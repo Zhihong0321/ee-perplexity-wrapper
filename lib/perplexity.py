@@ -440,3 +440,44 @@ class Client:
         resp = await self.session.delete(url, params=params)
         resp.raise_for_status()
         return resp.json()
+
+    async def delete_all_threads(self):
+        """
+        Deletes all threads for the account.
+        
+        Returns:
+        - A dictionary with total deleted count and detailed results
+        """
+        threads_resp = await self.get_threads(limit=1000, offset=0)
+        threads = threads_resp.get('threads', [])
+        
+        results = {
+            "total": len(threads),
+            "deleted": 0,
+            "failed": 0,
+            "details": []
+        }
+        
+        for thread in threads:
+            thread_uuid = thread.get('uuid') or thread.get('id')
+            if not thread_uuid:
+                continue
+                
+            try:
+                await self.delete_thread(thread_uuid)
+                results["deleted"] += 1
+                results["details"].append({
+                    "uuid": thread_uuid,
+                    "title": thread.get('title', 'Untitled'),
+                    "success": True
+                })
+            except Exception as e:
+                results["failed"] += 1
+                results["details"].append({
+                    "uuid": thread_uuid,
+                    "title": thread.get('title', 'Untitled'),
+                    "success": False,
+                    "error": str(e)
+                })
+        
+        return results
